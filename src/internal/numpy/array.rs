@@ -72,9 +72,41 @@ pub fn validate_points(points: &DMatrix<f64>) -> Result<DMatrix<f64>> {
 }
 
 /// Flatten a matrix to a column vector (column-major order).
+///
+/// WARNING: Uses nalgebra's native column-major iteration order.
+/// For row-major order (like numpy.flatten('C') or Python list comprehension),
+/// use `flatten_row_major` instead.
 pub fn flatten(matrix: &DMatrix<f64>) -> nalgebra::DVector<f64> {
     let data: Vec<f64> = matrix.iter().cloned().collect();
     nalgebra::DVector::from_vec(data)
+}
+
+/// Flatten a matrix to a vector in row-major order.
+///
+/// This matches Python's numpy.flatten('C') / default behavior and
+/// Python list comprehensions like `[x for row in matrix for x in row]`.
+///
+/// For a 2x2 matrix [[a, b], [c, d]], returns [a, b, c, d].
+///
+/// IMPORTANT: Use this instead of `.iter().collect()` when you need
+/// row-major order (which is most cases when porting from Python/Go).
+pub fn flatten_row_major(matrix: &DMatrix<f64>) -> Vec<f64> {
+    let (nrows, ncols) = matrix.shape();
+    let mut result = Vec::with_capacity(nrows * ncols);
+    for row in 0..nrows {
+        for col in 0..ncols {
+            result.push(matrix[(row, col)]);
+        }
+    }
+    result
+}
+
+/// Convert a matrix to a Vec in row-major order.
+///
+/// Alias for `flatten_row_major` for clarity in contexts where we're
+/// creating measurement vectors for Kalman filters.
+pub fn to_row_major_vec(matrix: &DMatrix<f64>) -> Vec<f64> {
+    flatten_row_major(matrix)
 }
 
 /// Reshape a vector into a matrix.

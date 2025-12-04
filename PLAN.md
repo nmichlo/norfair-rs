@@ -34,9 +34,25 @@
 
 ## Current Status
 
-**Tests:** 276 total (270 unit + 6 integration) - All passing ✅
+**Tests:** 278 total (270 unit + 2 fixture + 6 integration) - All passing ✅
 
 SEE: ./PLAN_TESTS.md for detailed checklist
+
+### Fixture Tests Complete (2025-12-04)
+
+E2E fixture tests verify Rust tracker output matches Python reference:
+- `tests/fixture_tests.rs` - 2 tests (small, medium scenarios)
+- Fixtures generated from Python norfair in `testdata/fixtures/`
+- Tolerance: 1e-6 for numerical comparisons
+
+**Bugs fixed during fixture test implementation:**
+1. **Hit counter decrement** - Was only decrementing for non-initializing objects; now decrements for ALL objects
+2. **Hit counter increment** - Was `+period`; fixed to `+2*period` on match (net +1 with decay)
+3. **Initialization check** - Was `>=`; fixed to `>` for `hit_counter > initialization_delay`
+4. **Matrix flattening** - Was column-major; fixed to row-major to match Python/Go
+5. **Kalman covariance** - Was updating in predict(); fixed to embed in update() like Go
+6. **Object cleanup order** - Was decrement-then-remove; fixed to remove-then-decrement
+7. **initializing_id persistence** - Was clearing on initialization; now keeps permanently
 
 ### Verification Complete (2025-12-04)
 
@@ -265,7 +281,8 @@ See [PLAN_TESTS.md](./PLAN_TESTS.md) for complete test porting checklist.
 | Utils | 6 |
 | Internal (filterpy, scipy, numpy, motmetrics) | 98 |
 | Integration | 6 |
-| **Total** | **276** |
+| Fixture (E2E) | 2 |
+| **Total** | **278** |
 
 ---
 
@@ -305,5 +322,7 @@ See [PLAN_TESTS.md](./PLAN_TESTS.md) for complete test porting checklist.
 ## Notes
 
 - Using nalgebra instead of ndarray (pure Rust, no BLAS required)
-- Initializing objects don't decay hit_counter to allow accumulation
+- ALL objects (including initializing) decay hit_counter by 1 per frame, matched objects gain +2*period
+- Matrix operations use row-major order to match Python/Go (via `flatten_row_major()` helper)
 - Test fixtures from Go port needed for extended metrics tests
+- Fixture tests verify exact numerical equivalence with Python reference implementation

@@ -171,8 +171,9 @@ fn test_integration_multiple_distance_functions() {
 
             let tracked_objects = tracker.update(vec![det], 1, None);
 
-            // With init_delay=2, object is initialized at frame 1 (after 2 hits)
-            if frame >= 1 {
+            // With init_delay=2, object is initialized at frame 2 (after 3 hits)
+            // Frame 0: create with hit=1, Frame 1: 0->2 (not >2), Frame 2: 1->3 (>2, initialized)
+            if frame >= 2 {
                 assert_eq!(
                     tracked_objects.len(),
                     1,
@@ -418,16 +419,17 @@ fn test_integration_object_lifecycle() {
     let mut tracker = Tracker::new(config).expect("Failed to create tracker");
 
     // Phase 1: Object appears and initializes
-    // With initialization_delay=3:
-    // Frame 0: hit_counter=1 (initializing)
-    // Frame 1: hit_counter=2 (initializing)
-    // Frame 2: hit_counter=3 (becomes initialized, >= delay)
+    // With initialization_delay=3 and hit_counter > delay check:
+    // Frame 0: create with hit=1 (initializing)
+    // Frame 1: 0->2, 2 > 3 is false (initializing)
+    // Frame 2: 1->3, 3 > 3 is false (initializing)
+    // Frame 3: 2->4, 4 > 3 is true (INITIALIZED)
     for frame in 0..5 {
         let det = Detection::from_slice(&[100.0, 100.0], 1, 2).unwrap();
         let tracked_objects = tracker.update(vec![det], 1, None);
 
         match frame {
-            0..=1 => {
+            0..=2 => {
                 // Should be initializing (no active objects visible)
                 assert_eq!(tracked_objects.len(), 0, "Frame {}: should still be initializing", frame);
             }
@@ -463,8 +465,9 @@ fn test_integration_object_lifecycle() {
         let det = Detection::from_slice(&[300.0, 300.0], 1, 2).unwrap();
         let tracked_objects = tracker.update(vec![det], 1, None);
 
-        // With initialization_delay=3, new object initialized at frame 17
-        if frame >= 17 {
+        // With initialization_delay=3, new object initialized at frame 18
+        // (15: create hit=1, 16: 0->2, 17: 1->3, 18: 2->4 > 3)
+        if frame >= 18 {
             assert!(
                 tracked_objects.len() <= 1,
                 "Frame {}: should have at most 1 object",

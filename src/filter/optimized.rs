@@ -87,18 +87,10 @@ impl OptimizedKalmanFilter {
 impl Filter for OptimizedKalmanFilter {
     fn predict(&mut self) {
         // Update positions: pos += vel
+        // NOTE: Covariance is NOT updated here - it's handled inline in update()
+        // This matches Go's OptimizedKalmanFilter behavior
         for i in 0..self.dim_z {
             self.x[i] += self.x[self.dim_z + i];
-        }
-
-        // Update covariances
-        for i in 0..self.dim_z {
-            // pos_var = pos_var + 2*pos_vel_cov + vel_var + q
-            self.pos_variance[i] += 2.0 * self.pos_vel_covariance[i] + self.vel_variance[i] + self.q;
-            // pos_vel_cov = pos_vel_cov + vel_var
-            self.pos_vel_covariance[i] += self.vel_variance[i];
-            // vel_var = vel_var + q
-            self.vel_variance[i] += self.q;
         }
     }
 
@@ -109,37 +101,67 @@ impl Filter for OptimizedKalmanFilter {
         h: Option<&DMatrix<f64>>,
     ) {
         // Build observation mask from H matrix if provided
-        let observe: Vec<bool> = if let Some(h_mat) = h {
-            (0..self.dim_z)
-                .map(|i| h_mat[(i, i)] > 0.5)
-                .collect()
+        // diagonal = 1.0 if observed, 0.0 if not
+        let (diagonal, one_minus_diagonal): (Vec<f64>, Vec<f64>) = if let Some(h_mat) = h {
+            let d: Vec<f64> = (0..self.dim_z).map(|i| h_mat[(i, i)]).collect();
+            let omd: Vec<f64> = d.iter().map(|&x| 1.0 - x).collect();
+            (d, omd)
         } else {
-            vec![true; self.dim_z]
+            (vec![1.0; self.dim_z], vec![0.0; self.dim_z])
         };
 
+        // Precompute terms that include covariance propagation (matches Go behavior)
+        // This embeds the predict-step covariance update into the update formula
+        let mut vel_var_plus_pos_vel_cov = vec![0.0; self.dim_z];
+        let mut added_variances = vec![0.0; self.dim_z];
+        let mut kalman_r_over_added_variances = vec![0.0; self.dim_z];
+        let mut vel_var_plus_pos_vel_cov_over_added_variances = vec![0.0; self.dim_z];
+        let mut added_variances_or_kalman_r = vec![0.0; self.dim_z];
+
         for i in 0..self.dim_z {
-            if !observe[i] {
-                continue;
-            }
+            vel_var_plus_pos_vel_cov[i] = self.pos_vel_covariance[i] + self.vel_variance[i];
+            // added_variances = predicted_pos_var + R
+            // where predicted_pos_var = pos_var + 2*pos_vel_cov + vel_var + q
+            added_variances[i] = self.pos_variance[i]
+                + self.pos_vel_covariance[i]
+                + vel_var_plus_pos_vel_cov[i]
+                + self.q
+                + self.r;
+            kalman_r_over_added_variances[i] = self.r / added_variances[i];
+            vel_var_plus_pos_vel_cov_over_added_variances[i] =
+                vel_var_plus_pos_vel_cov[i] / added_variances[i];
+            added_variances_or_kalman_r[i] =
+                added_variances[i] * one_minus_diagonal[i] + self.r * diagonal[i];
+        }
 
-            // Innovation
-            let y = measurement[i] - self.x[i];
+        // Compute error (innovation)
+        let mut error = vec![0.0; self.dim_z];
+        for i in 0..self.dim_z {
+            error[i] = (measurement[i] - self.x[i]) * diagonal[i];
+        }
 
-            // Innovation covariance
-            let s = self.pos_variance[i] + self.r;
+        // State update
+        for i in 0..self.dim_z {
+            // Position update: x += diagonal * (1 - R/addedVar) * error
+            self.x[i] += diagonal[i] * (1.0 - kalman_r_over_added_variances[i]) * error[i];
+        }
+        for i in 0..self.dim_z {
+            // Velocity update: v += diagonal * k_vel * error
+            self.x[self.dim_z + i] +=
+                diagonal[i] * vel_var_plus_pos_vel_cov_over_added_variances[i] * error[i];
+        }
 
-            // Kalman gains
-            let k_pos = self.pos_variance[i] / s;
-            let k_vel = self.pos_vel_covariance[i] / s;
-
-            // State update
-            self.x[i] += k_pos * y;
-            self.x[self.dim_z + i] += k_vel * y;
-
-            // Covariance update
-            self.pos_variance[i] = (1.0 - k_pos) * self.pos_variance[i];
-            self.pos_vel_covariance[i] = (1.0 - k_pos) * self.pos_vel_covariance[i];
-            self.vel_variance[i] -= k_vel * self.pos_vel_covariance[i];
+        // Covariance update
+        for i in 0..self.dim_z {
+            self.pos_variance[i] =
+                (1.0 - kalman_r_over_added_variances[i]) * added_variances_or_kalman_r[i];
+            self.pos_vel_covariance[i] =
+                vel_var_plus_pos_vel_cov_over_added_variances[i] * added_variances_or_kalman_r[i];
+            self.vel_variance[i] += self.q
+                - diagonal[i]
+                * vel_var_plus_pos_vel_cov_over_added_variances[i]
+                * vel_var_plus_pos_vel_cov_over_added_variances[i]
+                * added_variances[i];
         }
     }
 

@@ -3,6 +3,7 @@
 use nalgebra::DMatrix;
 use crate::{Detection, TrackedObject};
 use crate::internal::scipy::cdist;
+use crate::internal::numpy::flatten_row_major;
 use super::traits::Distance;
 
 /// Wrapper for scipy-style distance metrics.
@@ -42,8 +43,9 @@ impl Distance for ScipyDistance {
         let mut cand_matrix = DMatrix::zeros(n_candidates, n_features);
         let mut obj_matrix = DMatrix::zeros(n_objects, n_features);
 
+        // IMPORTANT: Use row-major flattening to match Python/Go behavior
         for (i, candidate) in candidates.iter().enumerate() {
-            let flat: Vec<f64> = candidate.points.iter().cloned().collect();
+            let flat = flatten_row_major(&candidate.points);
             for (j, &val) in flat.iter().enumerate() {
                 if j < n_features {
                     cand_matrix[(i, j)] = val;
@@ -52,7 +54,7 @@ impl Distance for ScipyDistance {
         }
 
         for (i, object) in objects.iter().enumerate() {
-            let flat: Vec<f64> = object.estimate.iter().cloned().collect();
+            let flat = flatten_row_major(&object.estimate);
             for (j, &val) in flat.iter().enumerate() {
                 if j < n_features {
                     obj_matrix[(i, j)] = val;

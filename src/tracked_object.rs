@@ -261,22 +261,21 @@ mod tests {
 
     #[test]
     fn test_factory_get_ids() {
-        TrackedObjectFactory::reset_global_counter();
+        // NOTE: Don't reset global counter - tests run in parallel and share it
         let factory = TrackedObjectFactory::new();
 
         let (global_id, init_id) = factory.get_ids();
-        assert_eq!(init_id, 0);
-        // global_id should be from the global counter
+        assert_eq!(init_id, 0); // Initializing ID starts at 0 per factory
 
         let (global_id2, init_id2) = factory.get_ids();
         assert_eq!(init_id2, 1);
-        assert!(global_id2 > global_id);
+        // Global IDs should be sequential (though not necessarily starting at 0)
+        assert_eq!(global_id2, global_id + 1);
     }
 
     #[test]
     fn test_factory_global_id_uniqueness() {
-        TrackedObjectFactory::reset_global_counter();
-
+        // NOTE: Don't reset global counter - tests run in parallel and share it
         let factory1 = TrackedObjectFactory::new();
         let factory2 = TrackedObjectFactory::new();
 

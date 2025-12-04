@@ -262,7 +262,9 @@ fn run_fixture_test(scenario: &str) {
         }
 
         // Compare all_objects (all internal objects including initializing)
-        let all_refs: Vec<&norfair_rs::TrackedObject> = tracker.tracked_objects.iter().collect();
+        // Sort by initializing_id to ensure consistent ordering for comparison
+        let mut all_refs: Vec<&norfair_rs::TrackedObject> = tracker.tracked_objects.iter().collect();
+        all_refs.sort_by_key(|obj| obj.initializing_id.unwrap_or(i32::MAX));
         if let Err(msg) = compare_tracked_objects(
             step_idx,
             step.frame_id,

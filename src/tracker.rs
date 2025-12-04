@@ -9,6 +9,7 @@ use crate::filter::OptimizedKalmanFilterFactory;
 use crate::distances::distance_by_name;
 use crate::matching::{match_detections_and_objects, get_unmatched};
 use crate::camera_motion::CoordinateTransformation;
+use crate::internal::numpy::to_row_major_vec;
 
 // Global ID counter for unique IDs across all trackers
 static GLOBAL_ID_COUNTER: AtomicI32 = AtomicI32::new(0);
@@ -161,14 +162,16 @@ impl Tracker {
             }
         }
 
-        // Age all tracked objects (predict step) - inline to avoid borrow issues
+        // STAGE 2: Remove dead objects BEFORE predict step (matches Go behavior)
+        // Objects with hit_counter < 0 are removed; objects with hit_counter = 0 survive this frame
+        self.tracked_objects.retain(|obj| obj.hit_counter >= 0);
+
+        // STAGE 3: Age all tracked objects (predict step) - inline to avoid borrow issues
         for obj in &mut self.tracked_objects {
             obj.age += 1;
-            // Only decrement hit_counter for non-initializing objects
-            // Initializing objects need to accumulate hits without decay
-            if !obj.is_initializing {
-                obj.hit_counter -= 1;
-            }
+            // Decrement hit_counter for ALL objects (matches Python/Go behavior)
+            // Matched objects will get +2*period in hit_object(), unmatched decay by 1
+            obj.hit_counter -= 1;
 
             // Decrement point hit counters
             for counter in &mut obj.point_hit_counter {
@@ -194,9 +197,6 @@ impl Tracker {
                 obj.last_coord_transform = Some(transform.clone_box());
             }
         }
-
-        // Remove dead objects (hit_counter < 0)
-        self.tracked_objects.retain(|obj| obj.hit_counter >= 0);
 
         // Separate initializing and initialized objects
         let (initialized_indices, initializing_indices): (Vec<_>, Vec<_>) = self
@@ -300,15 +300,17 @@ impl Tracker {
         // Now get mutable access for updates
         let obj = &mut self.tracked_objects[obj_idx];
 
-        // Update hit counter
-        obj.hit_counter = (obj.hit_counter + period).min(self.config.hit_counter_max);
+        // Update hit counter: add 2*period on match (matches Python/Go behavior)
+        // Combined with -1 in tracker_step, matched objects gain net +(2*period - 1)
+        obj.hit_counter = (obj.hit_counter + 2 * period).min(self.config.hit_counter_max);
 
         // Check for initialization transition
-        if obj.is_initializing && obj.hit_counter >= self.config.initialization_delay {
+        // Note: use > not >= to match Python/Go behavior
+        if obj.is_initializing && obj.hit_counter > self.config.initialization_delay {
             obj.is_initializing = false;
             obj.id = Some(self.instance_id_counter);
             self.instance_id_counter += 1;
-            obj.initializing_id = None;
+            // NOTE: Keep initializing_id - it's a permanent identifier, not just for initialization phase
 
             // Reset reid_hit_counter if configured
             if self.config.reid_hit_counter_max.is_some() {
@@ -325,8 +327,8 @@ impl Tracker {
         }
 
         // Kalman update
-        let measurement: Vec<f64> = detection.get_absolute_points().iter().cloned().collect();
-        let measurement = DVector::from_vec(measurement);
+        // IMPORTANT: Use row-major flattening for measurement vector (matches Python/Go)
+        let measurement = DVector::from_vec(to_row_major_vec(detection.get_absolute_points()));
         obj.filter.update(&measurement, None, h.as_ref());
 
         // Update estimate
@@ -391,7 +393,7 @@ impl Tracker {
             obj.is_initializing = false;
             obj.id = Some(self.instance_id_counter);
             self.instance_id_counter += 1;
-            obj.initializing_id = None;
+            // NOTE: Keep initializing_id - it's a permanent identifier, not just for initialization phase
         }
 
         self.tracked_objects.push(obj);
@@ -550,13 +552,18 @@ mod tests {
 
         let mut tracker = Tracker::new(config).unwrap();
 
-        // First update - initializing (hit_counter = 1)
+        // First update - initializing (hit_counter = 1 on creation)
         let det = Detection::from_slice(&[10.0, 20.0], 1, 2).unwrap();
         let active = tracker.update(vec![det.clone()], 1, None);
         assert_eq!(active.len(), 0);
 
-        // Second update - should be initialized now (hit_counter reaches 2)
-        // Initializing objects don't decay hit_counter, so 1 + 1 = 2 >= initialization_delay
+        // Second update - still initializing
+        // All objects decay: 1 -> 0, then match: +2 = 2, but 2 > 2 is false
+        let active = tracker.update(vec![det.clone()], 1, None);
+        assert_eq!(active.len(), 0);
+
+        // Third update - should be initialized now (hit_counter > initialization_delay)
+        // 2 -> 1, then match: +2 = 3, and 3 > 2 is true
         let active = tracker.update(vec![det], 1, None);
         assert_eq!(active.len(), 1);
         assert!(active[0].id.is_some());

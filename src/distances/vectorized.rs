@@ -2,6 +2,7 @@
 
 use nalgebra::DMatrix;
 use crate::{Detection, TrackedObject};
+use crate::internal::numpy::flatten_row_major;
 use super::traits::Distance;
 
 /// Vectorized distance function type.
@@ -38,30 +39,23 @@ impl Distance for VectorizedDistance {
         }
 
         // Build candidate and object matrices
-        let candidate_rows: usize = candidates.iter().map(|c| c.points.nrows()).sum();
-        let object_rows: usize = objects.iter().map(|o| o.estimate.nrows()).sum();
-        let n_dims = candidates[0].points.ncols();
-
-        // For vectorized functions like IoU, we expect flattened bbox format
-        // Each detection/object contributes one row to the matrix
-        let mut cand_matrix = DMatrix::zeros(n_candidates, n_dims * candidates[0].points.nrows());
-        let mut obj_matrix = DMatrix::zeros(n_objects, n_dims * objects[0].estimate.nrows());
+        // For vectorized functions like IoU, we expect flattened bbox format [x1, y1, x2, y2]
+        // IMPORTANT: Use row-major flattening to match Python/Go behavior
+        let n_features = candidates[0].points.nrows() * candidates[0].points.ncols();
+        let mut cand_matrix = DMatrix::zeros(n_candidates, n_features);
+        let mut obj_matrix = DMatrix::zeros(n_objects, n_features);
 
         for (i, candidate) in candidates.iter().enumerate() {
-            let flat: Vec<f64> = candidate.points.iter().cloned().collect();
+            let flat = flatten_row_major(&candidate.points);
             for (j, &val) in flat.iter().enumerate() {
-                if j < cand_matrix.ncols() {
-                    cand_matrix[(i, j)] = val;
-                }
+                cand_matrix[(i, j)] = val;
             }
         }
 
         for (i, object) in objects.iter().enumerate() {
-            let flat: Vec<f64> = object.estimate.iter().cloned().collect();
+            let flat = flatten_row_major(&object.estimate);
             for (j, &val) in flat.iter().enumerate() {
-                if j < obj_matrix.ncols() {
-                    obj_matrix[(i, j)] = val;
-                }
+                obj_matrix[(i, j)] = val;
             }
         }
 

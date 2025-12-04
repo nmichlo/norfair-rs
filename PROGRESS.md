@@ -134,23 +134,35 @@ Current: **186 tests passing** (180 unit tests + 6 integration tests)
   - camera_motion_compensation
   - object_lifecycle
 
+## Benchmarks
+
+Cross-language benchmark results (see `examples/benchmark/README.md`):
+
+**\*Known Bug:** Rust implementation tracks far fewer objects than Python/Go. Investigation needed - likely IoU format mismatch (expects 1x4, benchmark uses 2x2).
+**\*Known Bug:** Go implementation is largely equivalent but has some minor tracking differences especially under the stress test.
+
 ## Next Steps
 
 ### Immediate Tasks
 1. [x] Write README.md (similar to Go port structure)
-2. [ ] Create cross-language benchmarks (examples/benchmark/)
-   - Pre-generated deterministic test data
-   - Python, Go, and Rust implementations
-   - Performance comparison tooling
-3. [ ] Implement OpenCV-dependent features behind feature flag
+2. [x] Create cross-language benchmarks (examples/benchmark/)
+   - [x] Pre-generated deterministic test data (generate_data.py)
+   - [x] Python benchmark (benchmark_python.py)
+   - [x] Go benchmark (benchmark_go.go)
+   - [x] Rust benchmark (benchmark_rust.rs)
+   - [x] Runner script (run_benchmarks.sh)
+3. [ ] **FIX: Rust tracking bug** - Objects not matching correctly
+   - IoU expects 1 row × 4 cols, benchmark uses 2 rows × 2 cols
+   - Need to investigate VectorizedDistance wrapper
+4. [ ] Implement OpenCV-dependent features behind feature flag
    - [ ] HomographyTransformation
    - [ ] MotionEstimator
    - [ ] Video module
    - [ ] Drawing module
 
 ### Future Tasks
-4. [ ] Create PyO3 bindings for Python compatibility
-5. [ ] Add remaining Python/Go equivalence tests with fixture data
+5. [ ] Create PyO3 bindings for Python compatibility
+6. [ ] Add remaining Python/Go equivalence tests with fixture data
 
 ## Build Commands
 

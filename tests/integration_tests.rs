@@ -2,7 +2,7 @@
 //!
 //! These tests verify complete tracking workflows across multiple modules.
 
-use norfair::{
+use norfair_rs::{
     Detection, FilterFactory, Tracker, TrackerConfig,
     filter::{FilterPyKalmanFilterFactory, NoFilterFactory, OptimizedKalmanFilterFactory},
     distances::distance_by_name,

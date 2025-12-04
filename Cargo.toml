@@ -1,11 +1,11 @@
 [package]
-name = "norfair"
+name = "norfair-rs"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.70"
 description = "Object tracking library - Rust port of Python norfair"
 license = "BSD-3-Clause"
-repository = "https://github.com/nmichlo/norfair-rust"
+repository = "https://github.com/nmichlo/norfair-rs"
 keywords = ["tracking", "object-tracking", "kalman-filter", "computer-vision"]
 categories = ["computer-vision", "science"]
 
@@ -46,9 +46,9 @@ serde_json = "1.0"
 name = "benchmark_rust"
 path = "examples/benchmark/benchmark_rust.rs"
 
-# [[bench]]
-# name = "benchmarks"
-# harness = false
+[[bench]]
+name = "tracker_benchmarks"
+harness = false
 
 [profile.release]
 lto = true

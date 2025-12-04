@@ -1,4 +1,4 @@
-# norfair-rust
+# norfair-rs
 
 **Real-time multi-object tracking for Rust**
 
@@ -13,7 +13,7 @@
 
 ## Overview
 
-**norfair-rust** is a Rust implementation of the norfair multi-object tracking library, bringing real-time object tracking capabilities to Rust applications with:
+**norfair-rs** is a Rust implementation of the norfair multi-object tracking library, bringing real-time object tracking capabilities to Rust applications with:
 
 - **Detector-agnostic design:** Works with any object detector (YOLO, Faster R-CNN, custom models)
 - **Rust-native performance:** Zero-cost abstractions, no GC, maximum speed
@@ -34,13 +34,13 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-norfair = { git = "https://github.com/nmichlo/norfair-rust" }
+norfair = { git = "https://github.com/nmichlo/norfair-rs" }
 ```
 
 ## Quick Start
 
 ```rust
-use norfair::{Detection, Tracker, TrackerConfig};
+use norfair_rs::{Detection, Tracker, TrackerConfig};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 1. Create tracker with IoU distance function
@@ -125,8 +125,8 @@ Both implementations provide the same core functionality with Rust offering bett
 ## Configuration Options
 
 ```rust
-use norfair::{TrackerConfig, filter::OptimizedKalmanFilterFactory};
-use norfair::distances::distance_by_name;
+use norfair_rs::{TrackerConfig, filter::OptimizedKalmanFilterFactory};
+use norfair_rs::distances::distance_by_name;
 
 let mut config = TrackerConfig::new(distance_by_name("euclidean"), 50.0);
 
@@ -171,7 +171,7 @@ Custom distance functions can be implemented via the `Distance` trait.
 Three filter types are available:
 
 ```rust
-use norfair::filter::{
+use norfair_rs::filter::{
     OptimizedKalmanFilterFactory,  // Fast, simplified Kalman (default)
     FilterPyKalmanFilterFactory,    // Full filterpy-compatible Kalman
     NoFilterFactory,                // No prediction (detection-only)
@@ -191,7 +191,7 @@ use norfair::filter::{
 ### Camera Motion
 
 ```rust
-use norfair::camera_motion::TranslationTransformation;
+use norfair_rs::camera_motion::TranslationTransformation;
 
 // Compensate for camera movement
 let transform = TranslationTransformation::new([dx, dy]);
@@ -200,7 +200,7 @@ let tracked = tracker.update(detections, 1, Some(&transform));
 
 ## Performance
 
-norfair-rust is designed for high-performance tracking:
+norfair-rs is designed for high-performance tracking:
 
 - **Zero-copy where possible:** Uses references and slices
 - **Pre-allocated buffers:** Minimizes allocations during tracking
@@ -222,7 +222,7 @@ norfair = { git = "...", features = ["opencv"] }
 
 ## License & Attribution
 
-**norfair-rust** is licensed under the [BSD 3-Clause License](LICENSE).
+**norfair-rs** is licensed under the [BSD 3-Clause License](LICENSE).
 
 This Rust port is based on the original [norfair](https://github.com/tryolabs/norfair) by [Tryolabs](https://tryolabs.com/) (BSD 3-Clause). Their well-designed, detector-agnostic architecture made this port possible. Internal modules include code adapted from several Python libraries—see [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) for complete attribution.
 

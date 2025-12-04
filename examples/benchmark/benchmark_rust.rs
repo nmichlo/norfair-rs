@@ -98,8 +98,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // println!("  Frames: {}", scenario.num_frames);
 
     // Import norfair components
-    use norfair::{Detection, Tracker, TrackerConfig};
-    use norfair::distances::distance_by_name;
+    use norfair_rs::{Detection, Tracker, TrackerConfig};
+    use norfair_rs::distances::distance_by_name;
 
     // Create tracker with standard settings
     let mut config = TrackerConfig::new(distance_by_name("iou"), 0.5);

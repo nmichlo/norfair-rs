@@ -7,9 +7,9 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use nalgebra::DMatrix;
 
-use norfair::distances::distance_by_name;
-use norfair::filter::{FilterPyKalmanFilterFactory, NoFilterFactory, OptimizedKalmanFilterFactory};
-use norfair::{Detection, Tracker, TrackerConfig};
+use norfair_rs::distances::distance_by_name;
+use norfair_rs::filter::{FilterPyKalmanFilterFactory, NoFilterFactory, OptimizedKalmanFilterFactory};
+use norfair_rs::{Detection, Tracker, TrackerConfig};
 
 /// Create test detections for benchmarking.
 /// Ported from Go: createTestDetections

@@ -15,7 +15,7 @@
 //! ## Example
 //!
 //! ```rust,ignore
-//! use norfair::{Tracker, TrackerConfig, Detection, distance_by_name};
+//! use norfair_rs::{Tracker, TrackerConfig, Detection, distance_by_name};
 //!
 //! // Create tracker
 //! let config = TrackerConfig::new(distance_by_name("euclidean"), 50.0);

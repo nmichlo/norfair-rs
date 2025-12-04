@@ -18,15 +18,37 @@
 - **Detector-agnostic design:** Works with any object detector (YOLO, Faster R-CNN, custom models)
 - **Rust-native performance:** Zero-cost abstractions, no GC, maximum speed
 - **Type-safe API:** Compile-time validation of tracking configurations
-- **Comprehensive Tests:** 186 tests ensuring correctness and equivalence with the original norfair library
+- **Comprehensive Tests:** 278 tests ensuring correctness and equivalence with the original norfair library
 
-## Features
+### Related Projects
+
+- **[norfair](https://github.com/tryolabs/norfair)** - Original Python implementation by Tryolabs
+- **[norfair-go](https://github.com/nmichlo/norfair-go)** - Go port of norfair (sibling project)
+
+### Features
 
 - **Flexible Distance Functions:** IoU, Euclidean, Manhattan, Frobenius, Keypoint Voting, and more
 - **Multiple Filtering Options:** Optimized Kalman filter, full filterpy-equivalent Kalman, or no filtering
 - **Camera Motion Compensation:** Support for translation transformations (homography with opencv feature)
 - **Re-identification:** Optional feature embedding for robust identity matching
 - **Thread-safe:** Concurrent-safe ID generation and tracking
+
+### Benchmarks
+
+Cross-language performance comparison (IoU distance, OptimizedKalmanFilter):
+
+| Scenario | Frames | Detections | Python | Go | Rust |
+|----------|--------|------------|--------|-----|------|
+| Small | 100 | 446 | 5,077 fps | 252,578 fps | **148,469 fps** |
+| Medium | 500 | 9,015 | 560 fps | 35,195 fps | **63,497 fps** |
+| Large | 1,000 | 44,996 | 105 fps | 3,934 fps | **32,778 fps** |
+| Stress | 2,000 | 179,789 | 28 fps | 546 fps | **16,510 fps** |
+
+**Speedup vs Python:** 30-600x depending on scenario complexity.
+
+Benchmarks run on Apple M3 Pro. See `examples/benchmark/` for reproduction scripts.
+
+---
 
 ## Installation
 
@@ -197,17 +219,6 @@ use norfair_rs::camera_motion::TranslationTransformation;
 let transform = TranslationTransformation::new([dx, dy]);
 let tracked = tracker.update(detections, 1, Some(&transform));
 ```
-
-## Performance
-
-norfair-rs is designed for high-performance tracking:
-
-- **Zero-copy where possible:** Uses references and slices
-- **Pre-allocated buffers:** Minimizes allocations during tracking
-- **SIMD-friendly:** nalgebra enables vectorized math operations
-- **No garbage collection:** Predictable latency
-
-See `examples/benchmark/` for cross-language performance comparisons.
 
 ## Feature Flags
 

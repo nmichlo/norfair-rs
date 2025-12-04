@@ -37,11 +37,12 @@ pub fn match_detections_and_objects(
     }
 
     // Collect all valid (distance, det_idx, obj_idx) pairs
+    // NOTE: Use strict < to match norfair behavior (distance == threshold is NOT a match)
     let mut pairs: Vec<(f64, usize, usize)> = Vec::new();
     for i in 0..n_detections {
         for j in 0..n_objects {
             let dist = distance_matrix[(i, j)];
-            if dist.is_finite() && dist <= threshold {
+            if dist.is_finite() && dist < threshold {
                 pairs.push((dist, i, j));
             }
         }
@@ -334,17 +335,17 @@ mod tests {
 
     #[test]
     fn test_minimum_matrix_value() {
-        // Verify that all matches are below threshold
+        // Verify that all matches are below threshold (strict <)
         let matrix = DMatrix::from_row_slice(3, 3, &[
             5.0, 3.0, 7.0,
             2.0, 9.0, 4.0,
             6.0, 1.0, 8.0,
         ]);
 
-        // With threshold 2.5, only values ≤2.5 should match
+        // With threshold 2.5, only values < 2.5 should match
         let (dets, objs) = match_detections_and_objects(&matrix, 2.5);
 
-        // Should match [2,1]=1.0 and [1,0]=2.0
+        // Should match [2,1]=1.0 and [1,0]=2.0 (both < 2.5)
         assert_eq!(dets.len(), 2);
         assert_eq!(objs.len(), 2);
 

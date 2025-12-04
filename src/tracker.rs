@@ -255,10 +255,11 @@ impl Tracker {
             self.create_object(&detections[det_idx], period, coord_transform);
         }
 
-        // Return active (non-initializing, positive hit_counter) objects
+        // Return active (non-initializing, non-negative hit_counter) objects
+        // NOTE: Use >= 0 to match Python norfair behavior (objects with hit_counter=0 are still active)
         self.tracked_objects
             .iter()
-            .filter(|obj| !obj.is_initializing && obj.hit_counter > 0)
+            .filter(|obj| !obj.is_initializing && obj.hit_counter >= 0)
             .collect()
     }
 
@@ -271,7 +272,7 @@ impl Tracker {
     pub fn current_object_count(&self) -> usize {
         self.tracked_objects
             .iter()
-            .filter(|obj| !obj.is_initializing && obj.hit_counter > 0)
+            .filter(|obj| !obj.is_initializing && obj.hit_counter >= 0)
             .count()
     }
 

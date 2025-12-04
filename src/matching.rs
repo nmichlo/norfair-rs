@@ -305,4 +305,50 @@ mod tests {
         let unmatched = get_unmatched(3, &[]);
         assert_eq!(unmatched, vec![0, 1, 2]);
     }
+
+    // ===== Test minimum finding behavior (equivalent to Go's TestArgMin/TestMinMatrix) =====
+
+    #[test]
+    fn test_finds_minimum_value() {
+        // Matrix with minimum at a specific position
+        let matrix = DMatrix::from_row_slice(3, 3, &[
+            5.0, 3.0, 7.0,
+            2.0, 9.0, 4.0,
+            6.0, 1.0, 8.0,  // Minimum is at [2,1] = 1.0
+        ]);
+
+        let (dets, objs) = match_detections_and_objects(&matrix, 10.0);
+
+        // Should find and match the minimum (1.0 at [2,1]) first
+        assert_eq!(dets.len(), 3);
+        assert_eq!(objs.len(), 3);
+
+        // First match should be the minimum value location [2,1]
+        assert_eq!(dets[0], 2);
+        assert_eq!(objs[0], 1);
+    }
+
+    #[test]
+    fn test_minimum_matrix_value() {
+        // Verify that all matches are below threshold
+        let matrix = DMatrix::from_row_slice(3, 3, &[
+            5.0, 3.0, 7.0,
+            2.0, 9.0, 4.0,
+            6.0, 1.0, 8.0,
+        ]);
+
+        // With threshold 2.5, only values ≤2.5 should match
+        let (dets, objs) = match_detections_and_objects(&matrix, 2.5);
+
+        // Should match [2,1]=1.0 and [1,0]=2.0
+        assert_eq!(dets.len(), 2);
+        assert_eq!(objs.len(), 2);
+
+        // Greedy order: 1.0 first, then 2.0
+        assert_eq!(dets[0], 2); // row 2
+        assert_eq!(objs[0], 1); // col 1, value 1.0
+
+        assert_eq!(dets[1], 1); // row 1
+        assert_eq!(objs[1], 0); // col 0, value 2.0
+    }
 }

@@ -1,6 +1,244 @@
 //! MOT metrics accumulator for tracking evaluation.
+//!
+//! Ported from py-motmetrics.
+//! License: MIT (Christoph Heindl, Jack Valmadre)
 
 use nalgebra::DMatrix;
+use std::collections::HashMap;
+
+/// Track lifecycle for computing MT/ML/PT metrics.
+///
+/// Tracks the lifecycle of a ground truth object across frames.
+#[derive(Debug, Clone)]
+pub struct TrackLifecycle {
+    /// Ground truth object ID
+    pub gt_id: i32,
+    /// First frame where this object appears
+    pub first_frame: i32,
+    /// Last frame where this object appears
+    pub last_frame: i32,
+    /// Number of frames where the object was tracked (matched)
+    pub tracked_frames: i32,
+    /// Number of frames where the object was detected (present in GT)
+    pub detected_frames: i32,
+    /// Number of fragmentations (miss → match transitions)
+    pub fragmentations: i32,
+    /// Was the object matched in the previous frame?
+    pub was_matched: bool,
+}
+
+impl TrackLifecycle {
+    /// Create a new track lifecycle.
+    pub fn new(gt_id: i32, first_frame: i32) -> Self {
+        Self {
+            gt_id,
+            first_frame,
+            last_frame: first_frame,
+            tracked_frames: 0,
+            detected_frames: 0,
+            fragmentations: 0,
+            was_matched: false,
+        }
+    }
+
+    /// Update lifecycle when the object is matched in a frame.
+    pub fn update_matched(&mut self, frame: i32) {
+        self.last_frame = frame;
+        self.tracked_frames += 1;
+        self.detected_frames += 1;
+
+        // Fragmentation: transition from miss to match
+        if self.detected_frames > 1 && !self.was_matched {
+            self.fragmentations += 1;
+        }
+
+        self.was_matched = true;
+    }
+
+    /// Update lifecycle when the object is missed in a frame.
+    pub fn update_missed(&mut self, frame: i32) {
+        self.last_frame = frame;
+        self.detected_frames += 1;
+        self.was_matched = false;
+    }
+
+    /// Calculate coverage ratio (tracked_frames / detected_frames).
+    pub fn coverage(&self) -> f64 {
+        if self.detected_frames == 0 {
+            0.0
+        } else {
+            self.tracked_frames as f64 / self.detected_frames as f64
+        }
+    }
+}
+
+/// Extended MOT accumulator matching Go's API.
+///
+/// Uses a Hungarian assignment callback for flexible matching.
+#[derive(Debug)]
+pub struct ExtendedMOTAccumulator {
+    /// Video name
+    pub video_name: String,
+    /// Current frame ID
+    pub frame_id: i32,
+    /// Number of matches
+    pub num_matches: i32,
+    /// Number of misses
+    pub num_misses: i32,
+    /// Number of false positives
+    pub num_false_positives: i32,
+    /// Number of ID switches
+    pub num_switches: i32,
+    /// Number of GT objects seen
+    pub num_objects: i32,
+    /// Total distance for MOTP
+    pub total_distance: f64,
+    /// Previous frame's GT-to-tracker mapping
+    pub previous_mapping: HashMap<i32, i32>,
+    /// Track lifecycles for MT/ML/PT metrics
+    pub track_lifecycles: HashMap<i32, TrackLifecycle>,
+}
+
+impl ExtendedMOTAccumulator {
+    /// Create a new accumulator.
+    pub fn new(video_name: &str) -> Self {
+        Self {
+            video_name: video_name.to_string(),
+            frame_id: 0,
+            num_matches: 0,
+            num_misses: 0,
+            num_false_positives: 0,
+            num_switches: 0,
+            num_objects: 0,
+            total_distance: 0.0,
+            previous_mapping: HashMap::new(),
+            track_lifecycles: HashMap::new(),
+        }
+    }
+
+    /// Update the accumulator with a frame's data.
+    ///
+    /// # Arguments
+    /// * `gt_bboxes` - Ground truth bounding boxes
+    /// * `gt_ids` - Ground truth object IDs
+    /// * `pred_bboxes` - Predicted bounding boxes
+    /// * `pred_ids` - Predicted track IDs
+    /// * `threshold` - Maximum distance threshold
+    /// * `hungarian_fn` - Assignment function returning (matches, unmatched_gt, unmatched_pred)
+    pub fn update<F>(
+        &mut self,
+        gt_bboxes: &[Vec<f64>],
+        gt_ids: &[i32],
+        pred_bboxes: &[Vec<f64>],
+        pred_ids: &[i32],
+        threshold: f64,
+        hungarian_fn: F,
+    ) where
+        F: Fn(&[Vec<f64>], f64) -> (Vec<[usize; 2]>, Vec<usize>, Vec<usize>),
+    {
+        self.frame_id += 1;
+
+        // Edge case: no GT, no predictions
+        if gt_bboxes.is_empty() && pred_bboxes.is_empty() {
+            return;
+        }
+
+        // Edge case: no GT, only predictions → all false positives
+        if gt_bboxes.is_empty() {
+            self.num_false_positives += pred_bboxes.len() as i32;
+            return;
+        }
+
+        // Edge case: no predictions, only GT → all misses
+        if pred_bboxes.is_empty() {
+            self.num_misses += gt_bboxes.len() as i32;
+            self.num_objects += gt_bboxes.len() as i32;
+
+            // Update lifecycles: all GT objects are missed
+            for &gt_id in gt_ids {
+                let lifecycle = self
+                    .track_lifecycles
+                    .entry(gt_id)
+                    .or_insert_with(|| TrackLifecycle::new(gt_id, self.frame_id));
+                lifecycle.update_missed(self.frame_id);
+            }
+            return;
+        }
+
+        self.num_objects += gt_ids.len() as i32;
+
+        // Compute IoU distance matrix
+        let distances = super::iou::compute_iou_distance_matrix(gt_bboxes, pred_bboxes);
+
+        // Get assignment
+        let (matches, unmatched_gt, unmatched_pred) = hungarian_fn(&distances, threshold);
+
+        // Accumulate events
+        self.num_matches += matches.len() as i32;
+        self.num_misses += unmatched_gt.len() as i32;
+        self.num_false_positives += unmatched_pred.len() as i32;
+
+        // Accumulate distances for MOTP
+        for &[gt_idx, pred_idx] in &matches {
+            self.total_distance += distances[gt_idx][pred_idx];
+        }
+
+        // Update lifecycles for matched GT objects
+        for &[gt_idx, pred_idx] in &matches {
+            let gt_id = gt_ids[gt_idx];
+            let pred_id = pred_ids[pred_idx];
+
+            let lifecycle = self
+                .track_lifecycles
+                .entry(gt_id)
+                .or_insert_with(|| TrackLifecycle::new(gt_id, self.frame_id));
+            lifecycle.update_matched(self.frame_id);
+
+            // Check for ID switch
+            if let Some(&prev_pred_id) = self.previous_mapping.get(&gt_id) {
+                if prev_pred_id != pred_id {
+                    self.num_switches += 1;
+                }
+            }
+
+            self.previous_mapping.insert(gt_id, pred_id);
+        }
+
+        // Update lifecycles for missed GT objects
+        for &gt_idx in &unmatched_gt {
+            let gt_id = gt_ids[gt_idx];
+
+            let lifecycle = self
+                .track_lifecycles
+                .entry(gt_id)
+                .or_insert_with(|| TrackLifecycle::new(gt_id, self.frame_id));
+            lifecycle.update_missed(self.frame_id);
+        }
+    }
+
+    /// Compute extended metrics (MT, ML, PT, total fragmentations).
+    pub fn compute_extended_metrics(&self) -> (i32, i32, i32, i32) {
+        let mut mostly_tracked = 0;
+        let mut mostly_lost = 0;
+        let mut partially_tracked = 0;
+        let mut total_fragmentations = 0;
+
+        for lifecycle in self.track_lifecycles.values() {
+            let coverage = lifecycle.coverage();
+            total_fragmentations += lifecycle.fragmentations;
+
+            if coverage >= 0.8 {
+                mostly_tracked += 1;
+            } else if coverage < 0.2 {
+                mostly_lost += 1;
+            } else {
+                partially_tracked += 1;
+            }
+        }
+
+        (mostly_tracked, mostly_lost, partially_tracked, total_fragmentations)
+    }
+}
 
 /// Event types for MOT evaluation
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -574,5 +812,408 @@ mod tests {
         assert_eq!(metrics.num_matches, 0);
         assert_eq!(metrics.num_misses, 2);
         assert_eq!(metrics.num_false_positives, 2);
+    }
+
+    // ===== TrackLifecycle Tests (ported from Go) =====
+
+    #[test]
+    fn test_new_track_lifecycle() {
+        let lifecycle = TrackLifecycle::new(42, 10);
+
+        assert_eq!(lifecycle.gt_id, 42);
+        assert_eq!(lifecycle.first_frame, 10);
+        assert_eq!(lifecycle.last_frame, 10);
+        assert_eq!(lifecycle.tracked_frames, 0);
+        assert_eq!(lifecycle.detected_frames, 0);
+        assert_eq!(lifecycle.fragmentations, 0);
+        assert!(!lifecycle.was_matched);
+    }
+
+    #[test]
+    fn test_track_lifecycle_update_matched() {
+        let mut lifecycle = TrackLifecycle::new(1, 1);
+
+        // Frame 1: First match
+        lifecycle.update_matched(1);
+        assert_eq!(lifecycle.tracked_frames, 1);
+        assert_eq!(lifecycle.detected_frames, 1);
+        assert_eq!(lifecycle.fragmentations, 0, "Expected no fragmentation on first match");
+        assert!(lifecycle.was_matched);
+
+        // Frame 2: Consecutive match
+        lifecycle.update_matched(2);
+        assert_eq!(lifecycle.tracked_frames, 2);
+        assert_eq!(lifecycle.fragmentations, 0, "Expected no fragmentation on consecutive match");
+    }
+
+    #[test]
+    fn test_track_lifecycle_update_missed() {
+        let mut lifecycle = TrackLifecycle::new(1, 1);
+
+        lifecycle.update_missed(1);
+        assert_eq!(lifecycle.tracked_frames, 0, "Expected TrackedFrames=0 after miss");
+        assert_eq!(lifecycle.detected_frames, 1);
+        assert!(!lifecycle.was_matched, "Expected WasMatched=false after miss");
+    }
+
+    #[test]
+    fn test_track_lifecycle_fragmentation() {
+        let mut lifecycle = TrackLifecycle::new(1, 1);
+
+        // Frame 1: Match
+        lifecycle.update_matched(1);
+        assert_eq!(lifecycle.fragmentations, 0, "Frame 1: Expected no fragmentation");
+
+        // Frame 2: Miss (track break)
+        lifecycle.update_missed(2);
+        assert_eq!(lifecycle.fragmentations, 0, "Frame 2: Expected no fragmentation on miss");
+
+        // Frame 3: Match (fragmentation: miss → match)
+        lifecycle.update_matched(3);
+        assert_eq!(lifecycle.fragmentations, 1, "Frame 3: Expected 1 fragmentation (miss → match)");
+
+        // Frame 4: Miss
+        lifecycle.update_missed(4);
+
+        // Frame 5: Match (second fragmentation)
+        lifecycle.update_matched(5);
+        assert_eq!(lifecycle.fragmentations, 2, "Frame 5: Expected 2 fragmentations");
+    }
+
+    #[test]
+    fn test_track_lifecycle_coverage() {
+        let mut lifecycle = TrackLifecycle::new(1, 1);
+
+        // No detections: coverage = 0
+        let coverage = lifecycle.coverage();
+        assert_relative_eq!(coverage, 0.0, epsilon = 1e-10);
+
+        // 3 tracked out of 5 detected: coverage = 0.6
+        lifecycle.update_matched(1); // Tracked
+        lifecycle.update_matched(2); // Tracked
+        lifecycle.update_missed(3);  // Missed
+        lifecycle.update_matched(4); // Tracked
+        lifecycle.update_missed(5);  // Missed
+
+        let coverage = lifecycle.coverage();
+        assert_relative_eq!(coverage, 0.6, epsilon = 1e-10);
+    }
+
+    // ===== ExtendedMOTAccumulator Tests (ported from Go) =====
+
+    #[test]
+    fn test_new_extended_mot_accumulator() {
+        let acc = ExtendedMOTAccumulator::new("video1");
+
+        assert_eq!(acc.video_name, "video1");
+        assert_eq!(acc.frame_id, 0);
+        assert_eq!(acc.num_matches, 0);
+        assert!(acc.previous_mapping.is_empty());
+        assert!(acc.track_lifecycles.is_empty());
+    }
+
+    /// Mock Hungarian that returns no matches (all unmatched)
+    fn mock_hungarian_no_matches(distances: &[Vec<f64>], _threshold: f64) -> (Vec<[usize; 2]>, Vec<usize>, Vec<usize>) {
+        let num_gt = distances.len();
+        let num_pred = if num_gt > 0 { distances[0].len() } else { 0 };
+
+        let unmatched_gt: Vec<usize> = (0..num_gt).collect();
+        let unmatched_pred: Vec<usize> = (0..num_pred).collect();
+
+        (vec![], unmatched_gt, unmatched_pred)
+    }
+
+    #[test]
+    fn test_extended_accumulator_update_empty_frame() {
+        let mut acc = ExtendedMOTAccumulator::new("test");
+
+        // Both empty: should increment frame but no events
+        acc.update(&[], &[], &[], &[], 0.5, mock_hungarian_no_matches);
+
+        assert_eq!(acc.frame_id, 1);
+        assert_eq!(acc.num_matches, 0);
+        assert_eq!(acc.num_misses, 0);
+        assert_eq!(acc.num_false_positives, 0);
+    }
+
+    #[test]
+    fn test_extended_accumulator_update_only_predictions() {
+        let mut acc = ExtendedMOTAccumulator::new("test");
+
+        // No GT, 3 predictions → 3 false positives
+        let pred_bboxes = vec![
+            vec![0.0, 0.0, 10.0, 10.0],
+            vec![20.0, 20.0, 30.0, 30.0],
+            vec![40.0, 40.0, 50.0, 50.0],
+        ];
+        let pred_ids = vec![1, 2, 3];
+
+        acc.update(&[], &[], &pred_bboxes, &pred_ids, 0.5, mock_hungarian_no_matches);
+
+        assert_eq!(acc.num_false_positives, 3);
+        assert_eq!(acc.num_matches, 0);
+        assert_eq!(acc.num_misses, 0);
+    }
+
+    #[test]
+    fn test_extended_accumulator_update_only_gt() {
+        let mut acc = ExtendedMOTAccumulator::new("test");
+
+        // 2 GT, no predictions → 2 misses
+        let gt_bboxes = vec![
+            vec![0.0, 0.0, 10.0, 10.0],
+            vec![20.0, 20.0, 30.0, 30.0],
+        ];
+        let gt_ids = vec![1, 2];
+
+        acc.update(&gt_bboxes, &gt_ids, &[], &[], 0.5, mock_hungarian_no_matches);
+
+        assert_eq!(acc.num_misses, 2);
+        assert_eq!(acc.num_objects, 2);
+
+        // Verify lifecycles were created and updated
+        assert_eq!(acc.track_lifecycles.len(), 2);
+        for &gt_id in &gt_ids {
+            let lifecycle = acc.track_lifecycles.get(&gt_id).unwrap();
+            assert_eq!(lifecycle.detected_frames, 1, "GT {}: Expected 1 detected frame", gt_id);
+            assert_eq!(lifecycle.tracked_frames, 0, "GT {}: Expected 0 tracked frames", gt_id);
+        }
+    }
+
+    #[test]
+    fn test_extended_accumulator_update_perfect_match() {
+        let mut acc = ExtendedMOTAccumulator::new("test");
+
+        // Perfect match: same GT and predictions
+        let boxes = vec![
+            vec![0.0, 0.0, 10.0, 10.0],
+            vec![20.0, 20.0, 30.0, 30.0],
+        ];
+        let ids = vec![1, 2];
+
+        // Mock Hungarian returns all matches
+        let hungarian_fn = |_distances: &[Vec<f64>], _threshold: f64| -> (Vec<[usize; 2]>, Vec<usize>, Vec<usize>) {
+            (vec![[0, 0], [1, 1]], vec![], vec![])
+        };
+
+        acc.update(&boxes, &ids, &boxes, &ids, 0.5, hungarian_fn);
+
+        assert_eq!(acc.num_matches, 2);
+        assert_eq!(acc.num_misses, 0);
+        assert_eq!(acc.num_false_positives, 0);
+
+        // TotalDistance should be 0 (perfect overlap)
+        assert_relative_eq!(acc.total_distance, 0.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_extended_accumulator_update_partial_match() {
+        let mut acc = ExtendedMOTAccumulator::new("test");
+
+        let gt_bboxes = vec![
+            vec![0.0, 0.0, 10.0, 10.0],   // Will match
+            vec![20.0, 20.0, 30.0, 30.0], // Will miss
+        ];
+        let gt_ids = vec![1, 2];
+
+        let pred_bboxes = vec![
+            vec![0.0, 0.0, 10.0, 10.0],   // Matches GT 0
+            vec![50.0, 50.0, 60.0, 60.0], // False positive
+        ];
+        let pred_ids = vec![1, 2];
+
+        // Mock Hungarian: GT0↔Pred0 match, GT1 unmatched, Pred1 unmatched
+        let hungarian_fn = |_distances: &[Vec<f64>], _threshold: f64| -> (Vec<[usize; 2]>, Vec<usize>, Vec<usize>) {
+            (vec![[0, 0]], vec![1], vec![1])
+        };
+
+        acc.update(&gt_bboxes, &gt_ids, &pred_bboxes, &pred_ids, 0.5, hungarian_fn);
+
+        assert_eq!(acc.num_matches, 1);
+        assert_eq!(acc.num_misses, 1);
+        assert_eq!(acc.num_false_positives, 1);
+        assert_eq!(acc.num_objects, 2);
+    }
+
+    #[test]
+    fn test_extended_accumulator_detect_switches() {
+        let mut acc = ExtendedMOTAccumulator::new("test");
+
+        let boxes = vec![vec![0.0, 0.0, 10.0, 10.0]];
+
+        // Frame 1: GT1 → Tracker1
+        let hungarian_fn = |_distances: &[Vec<f64>], _threshold: f64| -> (Vec<[usize; 2]>, Vec<usize>, Vec<usize>) {
+            (vec![[0, 0]], vec![], vec![])
+        };
+        acc.update(&boxes, &[1], &boxes, &[1], 0.5, hungarian_fn);
+
+        assert_eq!(acc.num_switches, 0, "Frame 1: Expected 0 switches");
+
+        // Frame 2: GT1 → Tracker2 (switch!)
+        acc.update(&boxes, &[1], &boxes, &[2], 0.5, hungarian_fn);
+
+        assert_eq!(acc.num_switches, 1, "Frame 2: Expected 1 switch");
+
+        // Frame 3: GT1 → Tracker2 (no switch, same as previous)
+        acc.update(&boxes, &[1], &boxes, &[2], 0.5, hungarian_fn);
+
+        assert_eq!(acc.num_switches, 1, "Frame 3: Expected 1 switch total");
+    }
+
+    #[test]
+    fn test_extended_accumulator_multi_frame() {
+        let mut acc = ExtendedMOTAccumulator::new("test");
+
+        // Perfect Hungarian matcher
+        let hungarian_fn = |distances: &[Vec<f64>], _threshold: f64| -> (Vec<[usize; 2]>, Vec<usize>, Vec<usize>) {
+            let num_gt = distances.len();
+            let num_pred = if num_gt > 0 { distances[0].len() } else { 0 };
+            let num_matches = num_gt.min(num_pred);
+
+            let matches: Vec<[usize; 2]> = (0..num_matches).map(|i| [i, i]).collect();
+            let unmatched_gt: Vec<usize> = (num_matches..num_gt).collect();
+            let unmatched_pred: Vec<usize> = (num_matches..num_pred).collect();
+
+            (matches, unmatched_gt, unmatched_pred)
+        };
+
+        // Frame 1: 2 GT, 2 predictions (2 matches)
+        acc.update(
+            &[vec![0.0, 0.0, 10.0, 10.0], vec![20.0, 20.0, 30.0, 30.0]],
+            &[1, 2],
+            &[vec![0.0, 0.0, 10.0, 10.0], vec![20.0, 20.0, 30.0, 30.0]],
+            &[1, 2],
+            0.5,
+            hungarian_fn,
+        );
+
+        // Frame 2: 2 GT, 1 prediction (1 match, 1 miss)
+        acc.update(
+            &[vec![0.0, 0.0, 10.0, 10.0], vec![20.0, 20.0, 30.0, 30.0]],
+            &[1, 2],
+            &[vec![0.0, 0.0, 10.0, 10.0]],
+            &[1],
+            0.5,
+            hungarian_fn,
+        );
+
+        // Frame 3: 1 GT, 2 predictions (1 match, 1 FP)
+        acc.update(
+            &[vec![0.0, 0.0, 10.0, 10.0]],
+            &[1],
+            &[vec![0.0, 0.0, 10.0, 10.0], vec![50.0, 50.0, 60.0, 60.0]],
+            &[1, 3],
+            0.5,
+            hungarian_fn,
+        );
+
+        // Verify totals: 2+1+1=4 matches, 0+1+0=1 miss, 0+0+1=1 FP
+        assert_eq!(acc.num_matches, 4, "Expected 4 total matches");
+        assert_eq!(acc.num_misses, 1, "Expected 1 total miss");
+        assert_eq!(acc.num_false_positives, 1, "Expected 1 total FP");
+        assert_eq!(acc.num_objects, 5, "Expected 5 total objects (2+2+1)");
+    }
+
+    // ===== Extended Metrics Tests (ported from Go) =====
+
+    #[test]
+    fn test_compute_extended_metrics_mostly_tracked() {
+        let mut acc = ExtendedMOTAccumulator::new("test");
+
+        // Create lifecycle with 80% coverage (MT threshold)
+        let mut lifecycle1 = TrackLifecycle::new(1, 1);
+        for i in 0..8 {
+            lifecycle1.update_matched(i + 1);
+        }
+        for i in 0..2 {
+            lifecycle1.update_missed(i + 9);
+        }
+
+        // Create lifecycle with 100% coverage
+        let mut lifecycle2 = TrackLifecycle::new(2, 1);
+        for i in 0..10 {
+            lifecycle2.update_matched(i + 1);
+        }
+
+        acc.track_lifecycles.insert(1, lifecycle1);
+        acc.track_lifecycles.insert(2, lifecycle2);
+
+        let (mt, ml, pt, _) = acc.compute_extended_metrics();
+
+        assert_eq!(mt, 2, "Expected 2 MT tracks");
+        assert_eq!(ml, 0, "Expected 0 ML tracks");
+        assert_eq!(pt, 0, "Expected 0 PT tracks");
+    }
+
+    #[test]
+    fn test_compute_extended_metrics_mostly_lost() {
+        let mut acc = ExtendedMOTAccumulator::new("test");
+
+        // Create lifecycle with 0% coverage
+        let mut lifecycle1 = TrackLifecycle::new(1, 1);
+        for i in 0..10 {
+            lifecycle1.update_missed(i + 1);
+        }
+
+        // Create lifecycle with 16.67% coverage (1/6, just below 20%)
+        let mut lifecycle2 = TrackLifecycle::new(2, 1);
+        lifecycle2.update_matched(1);
+        for i in 0..5 {
+            lifecycle2.update_missed(i + 2);
+        }
+
+        acc.track_lifecycles.insert(1, lifecycle1);
+        acc.track_lifecycles.insert(2, lifecycle2);
+
+        let (mt, ml, pt, _) = acc.compute_extended_metrics();
+
+        assert_eq!(mt, 0, "Expected 0 MT tracks");
+        assert_eq!(ml, 2, "Expected 2 ML tracks");
+        assert_eq!(pt, 0, "Expected 0 PT tracks");
+    }
+
+    #[test]
+    fn test_compute_extended_metrics_partially_tracked() {
+        let mut acc = ExtendedMOTAccumulator::new("test");
+
+        // Create lifecycle with 50% coverage
+        let mut lifecycle = TrackLifecycle::new(1, 1);
+        for i in 0..5 {
+            lifecycle.update_matched(i * 2 + 1);
+            lifecycle.update_missed(i * 2 + 2);
+        }
+
+        acc.track_lifecycles.insert(1, lifecycle);
+
+        let (mt, ml, pt, _) = acc.compute_extended_metrics();
+
+        assert_eq!(mt, 0, "Expected 0 MT tracks");
+        assert_eq!(ml, 0, "Expected 0 ML tracks");
+        assert_eq!(pt, 1, "Expected 1 PT track");
+    }
+
+    #[test]
+    fn test_compute_extended_metrics_fragmentations() {
+        let mut acc = ExtendedMOTAccumulator::new("test");
+
+        // Track 1: 2 fragmentations
+        let mut lifecycle1 = TrackLifecycle::new(1, 1);
+        lifecycle1.update_matched(1);
+        lifecycle1.update_missed(2);
+        lifecycle1.update_matched(3); // Frag 1
+        lifecycle1.update_missed(4);
+        lifecycle1.update_matched(5); // Frag 2
+
+        // Track 2: 0 fragmentations
+        let mut lifecycle2 = TrackLifecycle::new(2, 1);
+        lifecycle2.update_matched(1);
+        lifecycle2.update_matched(2);
+
+        acc.track_lifecycles.insert(1, lifecycle1);
+        acc.track_lifecycles.insert(2, lifecycle2);
+
+        let (_, _, _, total_frag) = acc.compute_extended_metrics();
+
+        assert_eq!(total_frag, 2, "Expected 2 total fragmentations");
     }
 }

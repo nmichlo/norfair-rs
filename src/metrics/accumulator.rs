@@ -313,4 +313,211 @@ mod tests {
         assert_eq!(acc.num_misses(), 1);
         assert!((acc.mota() - 0.0).abs() < 1e-10);
     }
+
+    // ===== Ported from Go: TestEvalMotChallenge_* (accumulator-level equivalents) =====
+
+    /// Ported from Go: TestEvalMotChallenge_Perfect
+    /// Tests perfect tracking over multiple frames
+    #[test]
+    fn test_accumulator_perfect_multiframe() {
+        let mut acc = MOTAccumulator::new();
+
+        // Simulate 10 frames with 2 objects tracked perfectly
+        // Same positions as gt1.txt/pred1.txt (though IDs differ, positions match)
+        for frame in 1..=10 {
+            // Two objects at (100,100,50,50) and (200,200,50,50)
+            // In MOT format: x,y,w,h -> convert to x1,y1,x2,y2
+            let gt_boxes = DMatrix::from_row_slice(2, 4, &[
+                100.0, 100.0, 150.0, 150.0,  // Object 1
+                200.0, 200.0, 250.0, 250.0,  // Object 2
+            ]);
+            let hyp_boxes = DMatrix::from_row_slice(2, 4, &[
+                100.0, 100.0, 150.0, 150.0,  // Object 1
+                200.0, 200.0, 250.0, 250.0,  // Object 2
+            ]);
+
+            acc.update(frame, &[1, 2], &[1, 2], &gt_boxes, &hyp_boxes, 0.5);
+        }
+
+        // Perfect tracking should have MOTA ≈ 1.0
+        assert!(acc.mota() > 0.99, "Perfect tracking should have MOTA ≈ 1.0, got {}", acc.mota());
+
+        // Should have no false positives or misses
+        assert_eq!(acc.num_false_positives(), 0, "Expected 0 false positives");
+        assert_eq!(acc.num_misses(), 0, "Expected 0 misses");
+        assert_eq!(acc.num_switches(), 0, "Expected 0 switches");
+
+        // Should have 20 matches (2 per frame * 10 frames)
+        assert_eq!(acc.num_matches(), 20, "Expected 20 matches");
+    }
+
+    /// Ported from Go: TestEvalMotChallenge_MostlyLost
+    /// Tests scenario with many misses
+    #[test]
+    fn test_accumulator_mostly_lost() {
+        let mut acc = MOTAccumulator::new();
+
+        // Simulate tracking where predictions only cover first 2 frames
+        for frame in 1..=10 {
+            let gt_boxes = DMatrix::from_row_slice(2, 4, &[
+                100.0, 100.0, 150.0, 150.0,
+                200.0, 200.0, 250.0, 250.0,
+            ]);
+
+            if frame <= 2 {
+                // Only predict in first 2 frames
+                let hyp_boxes = DMatrix::from_row_slice(2, 4, &[
+                    100.0, 100.0, 150.0, 150.0,
+                    200.0, 200.0, 250.0, 250.0,
+                ]);
+                acc.update(frame, &[1, 2], &[1, 2], &gt_boxes, &hyp_boxes, 0.5);
+            } else {
+                // No predictions - all misses
+                let hyp_boxes = DMatrix::zeros(0, 4);
+                acc.update(frame, &[1, 2], &[], &gt_boxes, &hyp_boxes, 0.5);
+            }
+        }
+
+        // Mostly lost should have poor MOTA
+        assert!(acc.mota() < 0.5, "Mostly lost tracking should have low MOTA, got {}", acc.mota());
+
+        // Should have many misses (16 = 2 objects * 8 frames without predictions)
+        assert_eq!(acc.num_misses(), 16, "Expected 16 misses");
+    }
+
+    /// Ported from Go: TestEvalMotChallenge_Fragmented
+    /// Tests scenario with ID switches
+    #[test]
+    fn test_accumulator_fragmented() {
+        let mut acc = MOTAccumulator::new();
+
+        // Frame 1: Object 1 matched with hypothesis 1
+        let gt_boxes = DMatrix::from_row_slice(1, 4, &[100.0, 100.0, 150.0, 150.0]);
+        let hyp_boxes = DMatrix::from_row_slice(1, 4, &[100.0, 100.0, 150.0, 150.0]);
+        acc.update(1, &[1], &[1], &gt_boxes, &hyp_boxes, 0.5);
+
+        // Frame 2: Same object now matched with hypothesis 2 (ID switch)
+        acc.update(2, &[1], &[2], &gt_boxes, &hyp_boxes, 0.5);
+
+        // Frame 3: Back to hypothesis 1 (another ID switch)
+        acc.update(3, &[1], &[1], &gt_boxes, &hyp_boxes, 0.5);
+
+        // Should have ID switches
+        assert!(acc.num_switches() > 0, "Expected ID switches for fragmented tracking");
+
+        // All detections should still be matches (just with switches)
+        assert_eq!(acc.num_matches() + acc.num_switches(), 3, "Expected 3 total matched events");
+    }
+
+    /// Ported from Go: TestEvalMotChallenge_Mixed
+    /// Tests mixed scenario with some matches, misses, and false positives
+    #[test]
+    fn test_accumulator_mixed() {
+        let mut acc = MOTAccumulator::new();
+
+        // Frame 1: 2 GT objects, 2 hypotheses - perfect match
+        let gt_boxes = DMatrix::from_row_slice(2, 4, &[
+            100.0, 100.0, 150.0, 150.0,
+            200.0, 200.0, 250.0, 250.0,
+        ]);
+        let hyp_boxes = DMatrix::from_row_slice(2, 4, &[
+            100.0, 100.0, 150.0, 150.0,
+            200.0, 200.0, 250.0, 250.0,
+        ]);
+        acc.update(1, &[1, 2], &[1, 2], &gt_boxes, &hyp_boxes, 0.5);
+
+        // Frame 2: 2 GT objects, 1 hypothesis - 1 match, 1 miss
+        let gt_boxes2 = DMatrix::from_row_slice(2, 4, &[
+            100.0, 100.0, 150.0, 150.0,
+            200.0, 200.0, 250.0, 250.0,
+        ]);
+        let hyp_boxes2 = DMatrix::from_row_slice(1, 4, &[
+            100.0, 100.0, 150.0, 150.0,
+        ]);
+        acc.update(2, &[1, 2], &[1], &gt_boxes2, &hyp_boxes2, 0.5);
+
+        // Frame 3: 1 GT object, 2 hypotheses - 1 match, 1 false positive
+        let gt_boxes3 = DMatrix::from_row_slice(1, 4, &[100.0, 100.0, 150.0, 150.0]);
+        let hyp_boxes3 = DMatrix::from_row_slice(2, 4, &[
+            100.0, 100.0, 150.0, 150.0,
+            300.0, 300.0, 350.0, 350.0,  // FP - no overlapping GT
+        ]);
+        acc.update(3, &[1], &[1, 3], &gt_boxes3, &hyp_boxes3, 0.5);
+
+        // Should have some matches
+        assert!(acc.num_matches() > 0, "Expected some matches in mixed scenario");
+
+        // MOTA should be between 0 and 1
+        let mota = acc.mota();
+        assert!(mota >= 0.0 && mota <= 1.0, "MOTA should be in [0, 1], got {}", mota);
+
+        // Should have at least 1 miss and 1 false positive
+        assert!(acc.num_misses() >= 1, "Expected at least 1 miss");
+        assert!(acc.num_false_positives() >= 1, "Expected at least 1 false positive");
+    }
+
+    /// Test MOTP calculation
+    #[test]
+    fn test_accumulator_motp() {
+        let mut acc = MOTAccumulator::new();
+
+        // Perfect overlap should have MOTP = 1.0
+        let gt_boxes = DMatrix::from_row_slice(1, 4, &[0.0, 0.0, 10.0, 10.0]);
+        let hyp_boxes = DMatrix::from_row_slice(1, 4, &[0.0, 0.0, 10.0, 10.0]);
+
+        acc.update(1, &[1], &[1], &gt_boxes, &hyp_boxes, 0.5);
+
+        assert!((acc.motp() - 1.0).abs() < 1e-10, "MOTP should be 1.0 for perfect overlap");
+    }
+
+    /// Test all false positives scenario
+    #[test]
+    fn test_accumulator_all_false_positives() {
+        let mut acc = MOTAccumulator::new();
+
+        let gt_boxes = DMatrix::zeros(0, 4);
+        let hyp_boxes = DMatrix::from_row_slice(2, 4, &[
+            100.0, 100.0, 150.0, 150.0,
+            200.0, 200.0, 250.0, 250.0,
+        ]);
+
+        acc.update(1, &[], &[1, 2], &gt_boxes, &hyp_boxes, 0.5);
+
+        assert_eq!(acc.num_matches(), 0);
+        assert_eq!(acc.num_misses(), 0);
+        assert_eq!(acc.num_false_positives(), 2);
+    }
+
+    /// Test GT/hypothesis ID counting
+    #[test]
+    fn test_accumulator_id_counts() {
+        let mut acc = MOTAccumulator::new();
+
+        let gt_boxes = DMatrix::from_row_slice(2, 4, &[
+            100.0, 100.0, 150.0, 150.0,
+            200.0, 200.0, 250.0, 250.0,
+        ]);
+        let hyp_boxes = DMatrix::from_row_slice(2, 4, &[
+            100.0, 100.0, 150.0, 150.0,
+            200.0, 200.0, 250.0, 250.0,
+        ]);
+
+        // Frame 1
+        acc.update(1, &[1, 2], &[10, 20], &gt_boxes, &hyp_boxes, 0.5);
+        // Frame 2 - same IDs
+        acc.update(2, &[1, 2], &[10, 20], &gt_boxes, &hyp_boxes, 0.5);
+        // Frame 3 - add new GT ID
+        acc.update(3, &[1, 2, 3], &[10, 20, 30], &DMatrix::from_row_slice(3, 4, &[
+            100.0, 100.0, 150.0, 150.0,
+            200.0, 200.0, 250.0, 250.0,
+            300.0, 300.0, 350.0, 350.0,
+        ]), &DMatrix::from_row_slice(3, 4, &[
+            100.0, 100.0, 150.0, 150.0,
+            200.0, 200.0, 250.0, 250.0,
+            300.0, 300.0, 350.0, 350.0,
+        ]), 0.5);
+
+        assert_eq!(acc.num_gt_ids(), 3, "Expected 3 unique GT IDs");
+        assert_eq!(acc.num_hyp_ids(), 3, "Expected 3 unique hypothesis IDs");
+    }
 }

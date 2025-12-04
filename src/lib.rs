@@ -47,6 +47,10 @@ pub mod video;
 #[cfg(feature = "opencv")]
 pub mod drawing;
 
+// Python bindings (requires "python" feature)
+#[cfg(feature = "python")]
+pub mod python;
+
 // Re-exports for convenience
 pub use detection::Detection;
 pub use tracked_object::{TrackedObject, TrackedObjectFactory};

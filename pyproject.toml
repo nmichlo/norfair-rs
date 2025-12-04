@@ -1,0 +1,60 @@
+[build-system]
+requires = ["maturin>=1.4,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "norfair_rs"
+version = "0.1.0"
+description = "Fast object tracking library - Rust implementation of norfair"
+readme = "README.md"
+license = { text = "BSD-3-Clause" }
+requires-python = ">=3.12"
+keywords = ["tracking", "object-tracking", "kalman-filter", "computer-vision", "norfair"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Image Processing",
+]
+dependencies = [
+    "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "maturin>=1.4",
+]
+test-compat = [
+    "norfair==2.3.0",
+    "opencv-python>=4.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/nmichlo/norfair-rs"
+Repository = "https://github.com/nmichlo/norfair-rs"
+
+[tool.maturin]
+features = ["python"]
+python-source = "python"
+module-name = "norfair_rs._norfair_rs"
+
+[tool.pytest.ini_options]
+testpaths = ["tests/python"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[dependency-groups]
+dev = [
+    "maturin>=1.10.2",
+]

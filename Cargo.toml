@@ -9,6 +9,10 @@ repository = "https://github.com/nmichlo/norfair-rs"
 keywords = ["tracking", "object-tracking", "kalman-filter", "computer-vision"]
 categories = ["computer-vision", "science"]
 
+[lib]
+name = "norfair_rs"
+crate-type = ["cdylib", "rlib"]
+
 [features]
 default = []
 opencv = ["dep:opencv"]
@@ -17,6 +21,9 @@ python = ["dep:pyo3", "dep:numpy"]
 [dependencies]
 # Numerical computing - using nalgebra for pure Rust, no BLAS required
 nalgebra = "0.33"
+
+# Stack-allocated small vectors for hot paths
+smallvec = "1.13"
 
 # Error handling
 thiserror = "1.0"
@@ -28,7 +35,7 @@ configparser = "3.0"
 opencv = { version = "0.93", optional = true }
 
 # Optional: Python bindings
-pyo3 = { version = "0.22", optional = true, features = ["extension-module"] }
+pyo3 = { version = "0.22", optional = true, features = ["extension-module", "abi3-py312"] }
 numpy = { version = "0.22", optional = true }
 
 [dev-dependencies]

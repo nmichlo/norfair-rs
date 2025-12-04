@@ -20,7 +20,7 @@ pub use scalar::ScalarDistance;
 pub use vectorized::VectorizedDistance;
 pub use scipy_wrapper::ScipyDistance;
 pub use functions::*;
-pub use dispatch::{DistanceFunction, distance_function_by_name};
+pub use dispatch::{DistanceFunction, distance_function_by_name, try_distance_function_by_name};
 
 use crate::{Error, Result};
 

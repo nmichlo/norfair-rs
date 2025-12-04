@@ -89,6 +89,30 @@ pub fn distance_function_by_name(name: &str) -> DistanceFunction {
     }
 }
 
+/// Create a DistanceFunction enum by name, returning a Result instead of panicking.
+///
+/// This is useful for error handling when the distance name comes from user input.
+pub fn try_distance_function_by_name(name: &str) -> Result<DistanceFunction, String> {
+    match name {
+        // Scalar functions
+        "frobenius" => Ok(DistanceFunction::Frobenius(ScalarDistance::new(frobenius))),
+        "mean_euclidean" => Ok(DistanceFunction::MeanEuclidean(ScalarDistance::new(mean_euclidean))),
+        "mean_manhattan" => Ok(DistanceFunction::MeanManhattan(ScalarDistance::new(mean_manhattan))),
+
+        // Vectorized functions
+        "iou" => Ok(DistanceFunction::Iou(VectorizedDistance::new(iou))),
+
+        // Scipy functions
+        "euclidean" => Ok(DistanceFunction::ScipyEuclidean(ScipyDistance::new("euclidean"))),
+        "sqeuclidean" => Ok(DistanceFunction::ScipySqeuclidean(ScipyDistance::new("sqeuclidean"))),
+        "manhattan" | "cityblock" => Ok(DistanceFunction::ScipyManhattan(ScipyDistance::new("manhattan"))),
+        "cosine" => Ok(DistanceFunction::ScipyCosine(ScipyDistance::new("cosine"))),
+        "chebyshev" => Ok(DistanceFunction::ScipyChebyshev(ScipyDistance::new("chebyshev"))),
+
+        _ => Err(format!("Unknown distance function: {}. Supported: frobenius, mean_euclidean, mean_manhattan, iou, euclidean, sqeuclidean, manhattan, cityblock, cosine, chebyshev", name)),
+    }
+}
+
 // Implement the Distance trait for DistanceFunction so it can be used interchangeably
 impl Distance for DistanceFunction {
     #[inline(always)]

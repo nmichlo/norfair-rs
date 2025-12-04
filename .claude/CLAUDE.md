@@ -42,3 +42,4 @@ When Rust output ≠ pyhon output:
 - **Push back** if you notice weird hacks to achieve python equivalence
 - **Keep PROGRESS.md updated** with current work status and next steps
 - **All tests** All tests must be ported.
+- remember to update ./PLAN.md as you go, after making logical progress.

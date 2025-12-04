@@ -1,0 +1,51 @@
+[package]
+name = "norfair"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.70"
+description = "Object tracking library - Rust port of Python norfair"
+license = "BSD-3-Clause"
+repository = "https://github.com/nmichlo/norfair-rust"
+keywords = ["tracking", "object-tracking", "kalman-filter", "computer-vision"]
+categories = ["computer-vision", "science"]
+
+[features]
+default = []
+opencv = ["dep:opencv"]
+python = ["dep:pyo3", "dep:numpy"]
+
+[dependencies]
+# Numerical computing - using nalgebra for pure Rust, no BLAS required
+nalgebra = "0.33"
+
+# Error handling
+thiserror = "1.0"
+
+# INI file parsing (for MOTChallenge seqinfo.ini)
+configparser = "3.0"
+
+# Optional: OpenCV bindings for video I/O and drawing
+opencv = { version = "0.93", optional = true }
+
+# Optional: Python bindings
+pyo3 = { version = "0.22", optional = true, features = ["extension-module"] }
+numpy = { version = "0.22", optional = true }
+
+[dev-dependencies]
+# Testing
+approx = "0.5"
+criterion = "0.5"
+proptest = "1.0"
+tempfile = "3.0"
+
+# [[bench]]
+# name = "benchmarks"
+# harness = false
+
+[profile.release]
+lto = true
+codegen-units = 1
+
+[profile.bench]
+lto = true
+codegen-units = 1

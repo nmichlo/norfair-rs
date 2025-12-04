@@ -2,7 +2,7 @@
 
 use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
-use numpy::{PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2, IntoPyArray};
+use numpy::{PyArray1, PyArray2, PyArrayMethods, IntoPyArray, PyUntypedArrayMethods};
 use numpy::ndarray::{Array1, Array2};
 use nalgebra::DMatrix;
 use std::sync::{Arc, RwLock};
@@ -40,11 +40,13 @@ impl PyDetection {
     /// Create a new Detection.
     ///
     /// Args:
-    ///     points: Detection points as a numpy array of shape (n_points, n_dims).
+    ///     points: Detection points as a numpy array of shape (n_points, n_dims) or (n_dims,).
     ///             For keypoints: [[x1, y1], [x2, y2], ...]
     ///             For bounding boxes: [[x1, y1], [x2, y2]] (top-left, bottom-right)
+    ///             1D arrays like [x, y] are automatically reshaped to [[x, y]].
+    ///             Arrays will be converted to float64 dtype.
     ///     scores: Optional per-point confidence scores of shape (n_points,).
-    ///     data: Optional arbitrary user data.
+    ///     data: Optional arbitrary user data (not currently used in norfair_rs).
     ///     label: Optional class label for multi-class tracking.
     ///     embedding: Optional embedding vector for re-identification.
     #[new]
@@ -52,21 +54,42 @@ impl PyDetection {
     #[allow(unused_variables)]
     fn new(
         py: Python<'_>,
-        points: PyReadonlyArray2<f64>,
-        scores: Option<PyReadonlyArray1<f64>>,
+        points: &Bound<'_, pyo3::types::PyAny>,
+        scores: Option<&Bound<'_, pyo3::types::PyAny>>,
         data: Option<PyObject>,
         label: Option<String>,
-        embedding: Option<PyReadonlyArray1<f64>>,
+        embedding: Option<&Bound<'_, pyo3::types::PyAny>>,
     ) -> PyResult<Self> {
-        // Convert numpy array to DMatrix (row-major)
-        let points_arr = points.as_array();
-        let n_points = points_arr.nrows();
-        let n_dims = points_arr.ncols();
+        // Convert points to float64 numpy array
+        let np = py.import_bound("numpy")?;
+        let points_f64 = np.call_method1("asarray", (points,))?
+            .call_method1("astype", (np.getattr("float64")?,))?;
+
+        // Get ndim to check if we need to reshape
+        let ndim: usize = points_f64.getattr("ndim")?.extract()?;
+        let points_2d = if ndim == 1 {
+            // Reshape 1D array [x, y] to 2D [[x, y]]
+            points_f64.call_method1("reshape", ((1, -1),))?
+        } else if ndim == 2 {
+            points_f64
+        } else {
+            return Err(PyValueError::new_err(format!(
+                "Points must be 1D or 2D array, got {}D",
+                ndim
+            )));
+        };
+
+        // Extract as PyArray2<f64> using bound API
+        let points_arr: Bound<'_, PyArray2<f64>> = points_2d.extract()?;
+        let points_readonly = points_arr.readonly();
+        let points_view = points_readonly.as_array();
+        let n_points = points_view.nrows();
+        let n_dims = points_view.ncols();
 
         // Validate dimensions
         if n_dims != 2 && n_dims != 3 {
             return Err(PyValueError::new_err(format!(
-                "Points must have 2 or 3 dimensions, got {}",
+                "Points must have 2 or 3 coordinate dimensions, got {}",
                 n_dims
             )));
         }
@@ -75,16 +98,23 @@ impl PyDetection {
         let mut data_vec = Vec::with_capacity(n_points * n_dims);
         for i in 0..n_points {
             for j in 0..n_dims {
-                data_vec.push(points_arr[[i, j]]);
+                data_vec.push(points_view[[i, j]]);
             }
         }
         let points_matrix = DMatrix::from_row_slice(n_points, n_dims, &data_vec);
 
         // Convert scores if provided
-        let scores_vec = scores.map(|s| {
-            let arr = s.as_array();
-            arr.iter().cloned().collect::<Vec<f64>>()
-        });
+        let scores_vec: Option<Vec<f64>> = if let Some(s) = scores {
+            let scores_f64 = np.call_method1("asarray", (s,))?
+                .call_method1("astype", (np.getattr("float64")?,))?
+                .call_method0("ravel")?;  // Flatten to 1D
+            let scores_arr: Bound<'_, PyArray1<f64>> = scores_f64.extract()?;
+            let scores_readonly = scores_arr.readonly();
+            let scores_view = scores_readonly.as_array();
+            Some(scores_view.iter().cloned().collect::<Vec<f64>>())
+        } else {
+            None
+        };
 
         // Validate scores length
         if let Some(ref sv) = scores_vec {
@@ -98,10 +128,17 @@ impl PyDetection {
         }
 
         // Convert embedding if provided
-        let embedding_vec = embedding.map(|e| {
-            let arr = e.as_array();
-            arr.iter().cloned().collect::<Vec<f64>>()
-        });
+        let embedding_vec: Option<Vec<f64>> = if let Some(e) = embedding {
+            let emb_f64 = np.call_method1("asarray", (e,))?
+                .call_method1("astype", (np.getattr("float64")?,))?
+                .call_method0("ravel")?;  // Flatten to 1D
+            let emb_arr: Bound<'_, PyArray1<f64>> = emb_f64.extract()?;
+            let emb_readonly = emb_arr.readonly();
+            let emb_view = emb_readonly.as_array();
+            Some(emb_view.iter().cloned().collect::<Vec<f64>>())
+        } else {
+            None
+        };
 
         // Create Detection
         let det = Detection::with_config(points_matrix, scores_vec, label, embedding_vec)
@@ -205,19 +242,24 @@ impl PyDetection {
 }
 
 /// Helper to convert a numpy array to DMatrix
-pub fn numpy_to_dmatrix(arr: &PyReadonlyArray2<f64>) -> DMatrix<f64> {
-    let arr = arr.as_array();
-    let n_rows = arr.nrows();
-    let n_cols = arr.ncols();
+pub fn numpy_to_dmatrix(py: Python<'_>, arr: &Bound<'_, pyo3::types::PyAny>) -> PyResult<DMatrix<f64>> {
+    let np = py.import_bound("numpy")?;
+    let arr_f64 = np.call_method1("asarray", (arr,))?
+        .call_method1("astype", (np.getattr("float64")?,))?;
+    let points_arr: Bound<'_, PyArray2<f64>> = arr_f64.extract()?;
+    let arr_readonly = points_arr.readonly();
+    let arr_view = arr_readonly.as_array();
+    let n_rows = arr_view.nrows();
+    let n_cols = arr_view.ncols();
 
     let mut data = Vec::with_capacity(n_rows * n_cols);
     for i in 0..n_rows {
         for j in 0..n_cols {
-            data.push(arr[[i, j]]);
+            data.push(arr_view[[i, j]]);
         }
     }
 
-    DMatrix::from_row_slice(n_rows, n_cols, &data)
+    Ok(DMatrix::from_row_slice(n_rows, n_cols, &data))
 }
 
 /// Helper to convert DMatrix to numpy array

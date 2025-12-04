@@ -110,12 +110,28 @@ impl PyTracker {
             ));
         };
 
+        // Validate parameters before creating config
+        if let Some(delay) = initialization_delay {
+            if delay < 0 {
+                return Err(PyValueError::new_err(
+                    "initialization_delay must be non-negative"
+                ));
+            }
+        }
+
+        if hit_counter_max <= 0 {
+            return Err(PyValueError::new_err(
+                "hit_counter_max must be positive"
+            ));
+        }
+
         // Extract filter factory and convert to FilterFactoryEnum
         let filter_enum = extract_filter_factory(filter_factory)?;
 
         // Build config with enum-based types
         let mut config = TrackerConfig::new(rust_distance, distance_threshold);
         config.hit_counter_max = hit_counter_max;
+        // Use -1 as sentinel for "use default" (hit_counter_max / 2)
         config.initialization_delay = initialization_delay.unwrap_or(-1);
         config.pointwise_hit_counter_max = pointwise_hit_counter_max;
         config.detection_threshold = detection_threshold;

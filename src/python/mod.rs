@@ -16,7 +16,7 @@ pub use detection::PyDetection;
 pub use tracked_object::PyTrackedObject;
 pub use tracker::PyTracker;
 pub use filters::{PyOptimizedKalmanFilterFactory, PyFilterPyKalmanFilterFactory, PyNoFilterFactory};
-pub use distances::{PyScalarDistance, PyVectorizedDistance, get_distance_by_name};
+pub use distances::{PyScalarDistance, PyVectorizedDistance, PyBuiltinDistance, PyDistanceFunctionWrapper, get_distance_by_name};
 pub use transforms::PyTranslationTransformation;
 
 /// Python module for norfair-rs.
@@ -38,6 +38,8 @@ fn _norfair_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Distance classes
     m.add_class::<PyScalarDistance>()?;
     m.add_class::<PyVectorizedDistance>()?;
+    m.add_class::<PyBuiltinDistance>()?;
+    m.add_class::<PyDistanceFunctionWrapper>()?;
 
     // Transformations
     m.add_class::<PyTranslationTransformation>()?;

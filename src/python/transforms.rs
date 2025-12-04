@@ -2,7 +2,7 @@
 
 use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
-use numpy::{PyArray2, PyReadonlyArray1, PyReadonlyArray2};
+use numpy::{PyArray1, PyArray2, PyArrayMethods};
 
 use crate::camera_motion::{
     CoordinateTransformation, TranslationTransformation, NilCoordinateTransformation,
@@ -42,16 +42,23 @@ impl PyTranslationTransformation {
     /// Args:
     ///     movement_vector: A 2-element array [dx, dy] representing the camera movement.
     #[new]
-    fn new(movement_vector: PyReadonlyArray1<f64>) -> PyResult<Self> {
-        let arr = movement_vector.as_array();
-        if arr.len() != 2 {
+    fn new(py: Python<'_>, movement_vector: &Bound<'_, pyo3::types::PyAny>) -> PyResult<Self> {
+        let np = py.import_bound("numpy")?;
+        let arr_f64 = np.call_method1("asarray", (movement_vector,))?
+            .call_method1("astype", (np.getattr("float64")?,))?
+            .call_method0("ravel")?;
+        let arr: Bound<'_, PyArray1<f64>> = arr_f64.extract()?;
+        let arr_readonly = arr.readonly();
+        let view = arr_readonly.as_array();
+
+        if view.len() != 2 {
             return Err(PyValueError::new_err(
                 "movement_vector must have exactly 2 elements [dx, dy]"
             ));
         }
 
         Ok(Self {
-            inner: TranslationTransformation::new([arr[0], arr[1]]),
+            inner: TranslationTransformation::new([view[0], view[1]]),
         })
     }
 
@@ -65,9 +72,9 @@ impl PyTranslationTransformation {
     fn abs_to_rel<'py>(
         &self,
         py: Python<'py>,
-        points: PyReadonlyArray2<f64>,
+        points: &Bound<'py, pyo3::types::PyAny>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
-        let pts = numpy_to_dmatrix(&points);
+        let pts = numpy_to_dmatrix(py, points)?;
         let result = self.inner.abs_to_rel(&pts);
         Ok(dmatrix_to_numpy(py, &result))
     }
@@ -82,9 +89,9 @@ impl PyTranslationTransformation {
     fn rel_to_abs<'py>(
         &self,
         py: Python<'py>,
-        points: PyReadonlyArray2<f64>,
+        points: &Bound<'py, pyo3::types::PyAny>,
     ) -> PyResult<Bound<'py, PyArray2<f64>>> {
-        let pts = numpy_to_dmatrix(&points);
+        let pts = numpy_to_dmatrix(py, points)?;
         let result = self.inner.rel_to_abs(&pts);
         Ok(dmatrix_to_numpy(py, &result))
     }

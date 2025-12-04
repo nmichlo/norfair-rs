@@ -2,7 +2,7 @@
 
 use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
-use numpy::{PyArray2, PyReadonlyArray2};
+use numpy::PyArray2;
 use nalgebra::DMatrix;
 
 use crate::distances::{
@@ -105,9 +105,8 @@ impl PyDistanceEnum {
 
                 // Call the Python function
                 let result_obj = func.call1(py, (cand_arr, obj_arr))?;
-                let result_arr: PyReadonlyArray2<f64> = result_obj.extract(py)?;
 
-                Ok(numpy_to_dmatrix(&result_arr))
+                Ok(numpy_to_dmatrix(py, result_obj.bind(py))?)
             }
         }
     }
@@ -197,6 +196,9 @@ pub fn get_distance_by_name(name: &str) -> PyResult<PyBuiltinDistance> {
 }
 
 /// A built-in distance function.
+///
+/// This object wraps a built-in distance function and provides a callable interface.
+/// Compatible with norfair API where Distance objects have a .distance_function attribute.
 #[pyclass(name = "Distance")]
 pub struct PyBuiltinDistance {
     pub(crate) inner: Box<dyn Distance>,
@@ -207,6 +209,119 @@ pub struct PyBuiltinDistance {
 impl PyBuiltinDistance {
     fn __repr__(&self) -> String {
         format!("Distance('{}')", self.name)
+    }
+
+    /// The underlying distance function as a callable.
+    ///
+    /// For scalar distances (frobenius, mean_euclidean, mean_manhattan):
+    ///     Takes (detection, tracked_object) and returns float.
+    ///
+    /// For vectorized distances (iou):
+    ///     Takes (candidates_array, objects_array) and returns distance matrix.
+    #[getter]
+    fn distance_function(slf: PyRef<'_, Self>) -> PyDistanceFunctionWrapper {
+        PyDistanceFunctionWrapper {
+            name: slf.name.clone(),
+        }
+    }
+}
+
+/// Wrapper that makes the distance function callable.
+/// Used as the return value of Distance.distance_function property.
+#[pyclass(name = "_DistanceFunction")]
+pub struct PyDistanceFunctionWrapper {
+    name: String,
+}
+
+#[pymethods]
+impl PyDistanceFunctionWrapper {
+    /// Call the distance function.
+    ///
+    /// For scalar distances: call(detection, tracked_object) -> float
+    /// For vectorized distances: call(candidates, objects) -> np.ndarray
+    #[pyo3(signature = (*args))]
+    fn __call__<'py>(
+        &self,
+        py: Python<'py>,
+        args: &Bound<'py, pyo3::types::PyTuple>,
+    ) -> PyResult<PyObject> {
+        match self.name.as_str() {
+            "iou" => {
+                // Vectorized: expects (candidates, objects) arrays
+                if args.len() != 2 {
+                    return Err(PyValueError::new_err(
+                        "iou distance function expects 2 arguments: (candidates, objects)"
+                    ));
+                }
+                let candidates = args.get_item(0)?;
+                let objects = args.get_item(1)?;
+                let result = iou_inner(py, &candidates, &objects)?;
+                Ok(result.into())
+            }
+            _ => {
+                // Scalar: expects (detection, tracked_object)
+                if args.len() != 2 {
+                    return Err(PyValueError::new_err(format!(
+                        "{} distance function expects 2 arguments: (detection, tracked_object)",
+                        self.name
+                    )));
+                }
+                let detection: PyRef<'_, PyDetection> = args.get_item(0)?.extract()?;
+                let tracked_obj: PyRef<'_, PyTrackedObject> = args.get_item(1)?.extract()?;
+
+                let det = detection.get_detection();
+                let estimate = &tracked_obj.estimate;
+
+                let distance = match self.name.as_str() {
+                    "frobenius" => {
+                        let diff = &det.points - estimate;
+                        diff.norm()
+                    }
+                    "mean_euclidean" => {
+                        let n_points = det.points.nrows();
+                        if n_points == 0 {
+                            0.0
+                        } else {
+                            let mut total = 0.0;
+                            for i in 0..n_points {
+                                let mut point_dist = 0.0;
+                                for j in 0..det.points.ncols() {
+                                    let diff = det.points[(i, j)] - estimate[(i, j)];
+                                    point_dist += diff * diff;
+                                }
+                                total += point_dist.sqrt();
+                            }
+                            total / n_points as f64
+                        }
+                    }
+                    "mean_manhattan" => {
+                        let n_points = det.points.nrows();
+                        if n_points == 0 {
+                            0.0
+                        } else {
+                            let mut total = 0.0;
+                            for i in 0..n_points {
+                                for j in 0..det.points.ncols() {
+                                    total += (det.points[(i, j)] - estimate[(i, j)]).abs();
+                                }
+                            }
+                            total / n_points as f64
+                        }
+                    }
+                    name => {
+                        return Err(PyValueError::new_err(format!(
+                            "Unsupported scalar distance: {}. Use get_distance_by_name() for supported distances.",
+                            name
+                        )));
+                    }
+                };
+                Ok(distance.into_py(py))
+            }
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        format!("<distance_function '{}'>", self.name)
     }
 }
 
@@ -318,6 +433,40 @@ pub fn mean_manhattan(detection: &PyDetection, tracked_object: &PyTrackedObject)
     total_dist / n_points as f64
 }
 
+/// Inner implementation of IoU that accepts PyAny.
+fn iou_inner<'py>(
+    py: Python<'py>,
+    candidates: &Bound<'py, pyo3::types::PyAny>,
+    objects: &Bound<'py, pyo3::types::PyAny>,
+) -> PyResult<Bound<'py, PyArray2<f64>>> {
+    let cand_mat = numpy_to_dmatrix(py, candidates)?;
+    let obj_mat = numpy_to_dmatrix(py, objects)?;
+
+    // Validate input dimensions - raise AssertionError to match norfair behavior
+    if cand_mat.ncols() < 4 {
+        return Err(pyo3::exceptions::PyAssertionError::new_err(format!(
+            "IoU requires at least 4 columns (x1, y1, x2, y2), got {}",
+            cand_mat.ncols()
+        )));
+    }
+    if obj_mat.ncols() < 4 {
+        return Err(pyo3::exceptions::PyAssertionError::new_err(format!(
+            "IoU requires at least 4 columns (x1, y1, x2, y2), got {}",
+            obj_mat.ncols()
+        )));
+    }
+    // Also check for too many columns (norfair uses exactly 4)
+    if cand_mat.ncols() != 4 {
+        return Err(pyo3::exceptions::PyAssertionError::new_err(format!(
+            "IoU expects exactly 4 columns (x1, y1, x2, y2), got {}",
+            cand_mat.ncols()
+        )));
+    }
+
+    let result = rust_iou(&cand_mat, &obj_mat);
+    Ok(dmatrix_to_numpy(py, &result))
+}
+
 /// Intersection over Union (IoU) distance for bounding boxes.
 ///
 /// Args:
@@ -332,12 +481,8 @@ pub fn mean_manhattan(detection: &PyDetection, tracked_object: &PyTrackedObject)
 #[pyfunction]
 pub fn iou<'py>(
     py: Python<'py>,
-    candidates: PyReadonlyArray2<f64>,
-    objects: PyReadonlyArray2<f64>,
+    candidates: &Bound<'py, pyo3::types::PyAny>,
+    objects: &Bound<'py, pyo3::types::PyAny>,
 ) -> PyResult<Bound<'py, PyArray2<f64>>> {
-    let cand_mat = numpy_to_dmatrix(&candidates);
-    let obj_mat = numpy_to_dmatrix(&objects);
-
-    let result = rust_iou(&cand_mat, &obj_mat);
-    Ok(dmatrix_to_numpy(py, &result))
+    iou_inner(py, candidates, objects)
 }

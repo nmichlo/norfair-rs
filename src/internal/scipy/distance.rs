@@ -62,7 +62,7 @@ pub fn cdist(xa: &DMatrix<f64>, xb: &DMatrix<f64>, metric: &str) -> DMatrix<f64>
                     let norm_a = norm_a.sqrt();
                     let norm_b = norm_b.sqrt();
                     if norm_a == 0.0 || norm_b == 0.0 {
-                        1.0
+                        0.0
                     } else {
                         1.0 - dot / (norm_a * norm_b)
                     }
@@ -199,8 +199,8 @@ mod tests {
 
         let result = cdist(&xa, &xb, "cosine");
 
-        // Distance should be 1 for zero vector (undefined similarity treated as 1)
-        assert_relative_eq!(result[(0, 0)], 1.0, epsilon = 1e-10);
+        // Distance should be 0 for zero vector (as per Go implementation)
+        assert_relative_eq!(result[(0, 0)], 0.0, epsilon = 1e-10);
     }
 
     // ===== Squared Euclidean distance tests =====

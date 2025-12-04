@@ -97,21 +97,22 @@ mod tests {
 
     #[test]
     fn test_linspace_basic() {
-        let result = linspace(0.0, 1.0, 5);
-        assert_eq!(result.len(), 5);
-        assert!((result[0] - 0.0).abs() < 1e-10);
-        assert!((result[1] - 0.25).abs() < 1e-10);
-        assert!((result[2] - 0.5).abs() < 1e-10);
-        assert!((result[3] - 0.75).abs() < 1e-10);
-        assert!((result[4] - 1.0).abs() < 1e-10);
+        // Test case: 5 values from 0 to 10
+        let result = linspace(0.0, 10.0, 5);
+        let expected = [0.0, 2.5, 5.0, 7.5, 10.0];
+        assert_eq!(result.len(), expected.len());
+        for (i, &val) in result.iter().enumerate() {
+            assert!((val - expected[i]).abs() < 1e-10, "Linspace value at {}", i);
+        }
     }
 
     #[test]
     fn test_linspace_two_points() {
-        let result = linspace(0.0, 10.0, 2);
-        assert_eq!(result.len(), 2);
-        assert!((result[0] - 0.0).abs() < 1e-10);
-        assert!((result[1] - 10.0).abs() < 1e-10);
+        let result = linspace(1.0, 10.0, 2);
+        let expected = [1.0, 10.0];
+        assert_eq!(result.len(), expected.len());
+        assert!((result[0] - expected[0]).abs() < 1e-10, "Start value");
+        assert!((result[1] - expected[1]).abs() < 1e-10, "End value");
     }
 
     #[test]
@@ -129,52 +130,143 @@ mod tests {
 
     #[test]
     fn test_linspace_negative() {
-        let result = linspace(-5.0, 5.0, 5);
-        assert_eq!(result.len(), 5);
-        assert!((result[0] - (-5.0)).abs() < 1e-10);
-        assert!((result[2] - 0.0).abs() < 1e-10);
-        assert!((result[4] - 5.0).abs() < 1e-10);
+        let result = linspace(-10.0, 10.0, 5);
+        let expected = [-10.0, -5.0, 0.0, 5.0, 10.0];
+        assert_eq!(result.len(), expected.len());
+        for (i, &val) in result.iter().enumerate() {
+            assert!((val - expected[i]).abs() < 1e-10, "Negative range value at {}", i);
+        }
     }
 
     #[test]
     fn test_linspace_reverse_range() {
         let result = linspace(10.0, 0.0, 5);
-        assert_eq!(result.len(), 5);
-        assert!((result[0] - 10.0).abs() < 1e-10);
-        assert!((result[2] - 5.0).abs() < 1e-10);
-        assert!((result[4] - 0.0).abs() < 1e-10);
+        let expected = [10.0, 7.5, 5.0, 2.5, 0.0];
+        assert_eq!(result.len(), expected.len());
+        for (i, &val) in result.iter().enumerate() {
+            assert!((val - expected[i]).abs() < 1e-10, "Reverse range value at {}", i);
+        }
     }
 
     #[test]
     fn test_linspace_floating_point() {
         let result = linspace(0.1, 0.9, 5);
-        assert_eq!(result.len(), 5);
-        assert!((result[0] - 0.1).abs() < 1e-10);
-        assert!((result[4] - 0.9).abs() < 1e-10);
+        let expected = [0.1, 0.3, 0.5, 0.7, 0.9];
+        assert_eq!(result.len(), expected.len());
+        for (i, &val) in result.iter().enumerate() {
+            assert!((val - expected[i]).abs() < 1e-10, "Floating-point value at {}", i);
+        }
     }
 
     #[test]
     fn test_linspace_large_n() {
         let result = linspace(0.0, 100.0, 101);
         assert_eq!(result.len(), 101);
-        assert!((result[0] - 0.0).abs() < 1e-10);
-        assert!((result[50] - 50.0).abs() < 1e-10);
-        assert!((result[100] - 100.0).abs() < 1e-10);
+
+        // Verify first, middle, and last values
+        assert!((result[0] - 0.0).abs() < 1e-10, "Start value");
+        assert!((result[50] - 50.0).abs() < 1e-10, "Middle value");
+        assert!((result[100] - 100.0).abs() < 1e-10, "End value");
+
+        // Verify all values are monotonically increasing
+        for i in 1..result.len() {
+            assert!(
+                result[i] > result[i - 1],
+                "Values not monotonically increasing: result[{}]={}, result[{}]={}",
+                i - 1, result[i - 1], i, result[i]
+            );
+        }
     }
 
     #[test]
     fn test_linspace_endpoint_exact() {
-        // Ensure endpoint is exactly preserved despite floating point
-        let result = linspace(0.0, 1.0, 1001);
-        assert_eq!(result[1000], 1.0); // Must be exact, not approximately 1.0
+        // Test with values that might accumulate floating-point error
+        let result = linspace(0.0, 1.0, 100);
+        assert_eq!(result.len(), 100);
+
+        // Endpoint should be exactly 1.0, not 0.9999999...
+        assert_eq!(result[99], 1.0, "Endpoint should be exactly 1.0, got {:.20}", result[99]);
     }
 
     #[test]
     fn test_linspace_zero_range() {
-        let result = linspace(5.0, 5.0, 5);
+        let result = linspace(5.0, 5.0, 10);
+        assert_eq!(result.len(), 10);
+
+        // All values should be exactly 5
+        for (i, &val) in result.iter().enumerate() {
+            assert!((val - 5.0).abs() < 1e-10, "Zero range value at {}", i);
+        }
+    }
+
+    #[test]
+    fn test_linspace_small_interval() {
+        let result = linspace(0.0, 1e-6, 5);
         assert_eq!(result.len(), 5);
-        for val in &result {
-            assert!((val - 5.0).abs() < 1e-10);
+
+        // Verify start and end
+        assert!((result[0] - 0.0).abs() < 1e-15, "Start value");
+        assert!((result[4] - 1e-6).abs() < 1e-15, "End value");
+
+        // Verify spacing
+        let expected_step = 0.25e-6;
+        for i in 1..(result.len() - 1) {
+            let expected = i as f64 * expected_step;
+            assert!((result[i] - expected).abs() < 1e-15, "Small interval value at {}", i);
+        }
+    }
+
+    #[test]
+    fn test_linspace_large_interval() {
+        let result = linspace(0.0, 1e10, 5);
+        assert_eq!(result.len(), 5);
+
+        let expected = [0.0, 2.5e9, 5e9, 7.5e9, 1e10];
+        for (i, &val) in result.iter().enumerate() {
+            assert!((val - expected[i]).abs() < 1e-3, "Large interval value at {}", i);
+        }
+    }
+
+    #[test]
+    fn test_linspace_matches_numpy_behavior() {
+        // Test cases that match numpy.linspace behavior
+        let test_cases: Vec<(f64, f64, usize, Vec<f64>)> = vec![
+            (0.0, 10.0, 5, vec![0.0, 2.5, 5.0, 7.5, 10.0]),
+            (-5.0, 5.0, 11, vec![-5.0, -4.0, -3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0]),
+            (0.0, 1.0, 3, vec![0.0, 0.5, 1.0]),
+            (10.0, 0.0, 6, vec![10.0, 8.0, 6.0, 4.0, 2.0, 0.0]),
+            (0.0, 0.0, 5, vec![0.0, 0.0, 0.0, 0.0, 0.0]),
+        ];
+
+        for (start, end, n, expected) in test_cases {
+            let result = linspace(start, end, n);
+
+            assert_eq!(
+                result.len(),
+                expected.len(),
+                "Linspace({}, {}, {}): expected length {}, got {}",
+                start, end, n, expected.len(), result.len()
+            );
+
+            for (i, &val) in result.iter().enumerate() {
+                assert!(
+                    (val - expected[i]).abs() < 1e-10,
+                    "Linspace({}, {}, {})[{}]: expected {}, got {}",
+                    start, end, n, i, expected[i], val
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_linspace_consistency() {
+        let result = linspace(0.0, 100.0, 11);
+        assert_eq!(result.len(), 11);
+
+        // Calculate differences between consecutive values
+        for i in 1..(result.len() - 1) {
+            let diff = result[i] - result[i - 1];
+            assert!((diff - 10.0).abs() < 1e-10, "Consistent spacing at {}", i);
         }
     }
 

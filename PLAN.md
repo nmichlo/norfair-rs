@@ -76,8 +76,8 @@ cargo test --release  # Run tests with release optimizations, faster.
 - [x] Create `LICENSE` (BSD 3-Clause, matching Go port)
 - [x] Create `THIRD_PARTY_LICENSES.md` (filterpy MIT, scipy BSD, motmetrics MIT)
 - [x] Create `src/lib.rs` with module structure
-- [x] Copy test fixtures from Go port (`testdata/extended_metrics/*.txt`)
-- [x] Copy golden images for drawing tests (`testdata/drawing/*.png`)
+- [x] Copy test fixtures from Go port (`tests/data/extended_metrics/*.txt`)
+- [x] Copy golden images for drawing tests (`tests/data/drawing/*.png`)
 
 ---
 

@@ -43,3 +43,4 @@ When Rust output ≠ pyhon output:
 - **Keep PLAN.md updated** with current work status and next steps. Remember to update it after making logical progress.
 - **Keep PLAN_TESTS.md updated** in the same way as PLAN.md
 - **All tests** All tests must be ported.
+- all python libs and commands need to be run through uv, e.g. GOOD: `uv run maturin` BAD: `pip install maturin ; maturin`

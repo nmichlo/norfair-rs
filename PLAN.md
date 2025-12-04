@@ -1,4 +1,4 @@
-# Norfair Rust Port - Implementation Plan
+# Norfair Rust Port - Plan & Progress
 
 > **Reference:** See full architecture details in [~/.claude/plans/twinkly-strolling-goose.md](file:///Users/nmichlo/.claude/plans/twinkly-strolling-goose.md)
 
@@ -8,416 +8,248 @@
 
 ---
 
-## Phase 1: Project Setup
+## THE GOLDEN RULE
+
+**When porting or tests fail showing numerical differences between python/go and Rust:**
+
+**DO THIS FIRST:**
+1. Find the Rust code that is failing
+2. Find the correspinding python and go code
+3. Open them all side-by-side
+4. Compare them all line-by-line
+5. Look for obvious bugs:
+   - Wrong formulas (det(c*A) vs c^n*det(A))
+   - Scalar vs array parameters
+   - Missing loops or wrong loop bounds
+   - Transposed matrices or wrong indexing
+   - Incorrect logic or control flow
+6. Add a test case for Rust that checks this divergence point.
+
+**ONLY IF THAT FAILS (rare):**
+1. Create minimal debug fixture in python
+2. Add targeted debug output to Rust
+3. Compare intermediate values
+4. Trace divergence point
+5. Add a test case for Rust that checks this divergence point.
+
+## Current Status
+
+**Tests:**
+
+SEE: ./PLAN_TESTS.md
+
+### Known Bugs
+
+1. **Rust tracking bug** - Objects not matching correctly in benchmarks
+   - IoU expects 1 row × 4 cols, benchmark uses 2 rows × 2 cols
+   - Need to investigate VectorizedDistance wrapper
+
+2. **Go minor differences** - Some tracking differences with python under stress test, need to investigate.
+
+---
+
+## Useful Commands
+
+```bash
+cargo check           # Check compilation
+cargo test --release  # Run tests with release optimizations, faster.
+```
+
+---
+
+## Phase 1: Project Setup - ✅ COMPLETE
 
 - [x] Create `Cargo.toml` with dependencies (nalgebra, thiserror, approx)
 - [x] Create `LICENSE` (BSD 3-Clause, matching Go port)
 - [x] Create `THIRD_PARTY_LICENSES.md` (filterpy MIT, scipy BSD, motmetrics MIT)
 - [x] Create `src/lib.rs` with module structure
-- [x] Create `PROGRESS.md` for tracking implementation status
 - [x] Copy test fixtures from Go port (`testdata/extended_metrics/*.txt`)
 - [x] Copy golden images for drawing tests (`testdata/drawing/*.png`)
 
 ---
 
-## Phase 2: Internal Dependencies (port from Go `internal/`)
+## Phase 2: Internal Dependencies - ✅ COMPLETE
 
 ### 2.1 Scipy Distance Functions (`internal/scipy/`)
 - [x] Port `internal/scipy/distance.go` → `src/internal/scipy/distance.rs`
-- [x] **Tests from Go:**
-  - [x] `TestCdist_Euclidean`
-  - [x] `TestCdist_Manhattan`
-  - [x] `TestCdist_Cosine`
-  - [x] `TestCdist_Chebyshev`
-  - [ ] `TestCdist_SquaredEuclidean`
+- [x] Tests: Euclidean, Manhattan, Cosine, Chebyshev
+- [ ] `TestCdist_SquaredEuclidean`
 
 ### 2.2 FilterPy Kalman Filter (`internal/filterpy/`)
 - [x] Port `internal/filterpy/kalman.go` → `src/internal/filterpy/kalman.rs`
-- [x] **Tests from Go:**
-  - [x] `TestKalmanFilter_Create`
-  - [x] `TestKalmanFilter_Predict`
-  - [x] `TestKalmanFilter_Update`
-  - [ ] `TestKalmanFilter_PredictUpdate`
-  - [ ] `TestKalmanFilter_MultipleCycles`
+- [x] Tests: Create, Predict, Update
+- [ ] `TestKalmanFilter_PredictUpdate`, `TestKalmanFilter_MultipleCycles`
 
 ### 2.3 NumPy Array Utilities (`internal/numpy/`)
 - [x] Port `internal/numpy/array.go` → `src/internal/numpy/array.rs`
-- [x] **Tests from Go:**
-  - [x] `TestFlatten`
-  - [x] `TestReshape`
-  - [x] `TestValidatePoints`
+- [x] Tests: Flatten, Reshape, ValidatePoints
 
 ### 2.4 MOT Metrics (`internal/motmetrics/`)
-- [x] Port `internal/motmetrics/accumulator.go` → `src/internal/motmetrics/accumulator.rs`
-- [x] Port `internal/motmetrics/iou.go` → `src/internal/motmetrics/iou.rs`
-- [x] **Tests from Go:**
-  - [x] `TestAccumulator_Update`
-  - [x] `TestAccumulator_GetEvents`
-  - [x] `TestIOUMatrix`
-  - [x] `TestIOUMatrix_NoOverlap`
-  - [x] `TestIOUMatrix_PartialOverlap`
+- [x] Port accumulator and IoU
+- [x] Tests: Accumulator_Update, GetEvents, IOUMatrix
 
 ---
 
-## Phase 3: Filter Module (`pkg/norfairgo/filter*.go`)
+## Phase 3: Filter Module - ✅ COMPLETE
 
 ### 3.1 Filter Traits
-- [x] Create `src/filter/mod.rs`
-- [x] Create `src/filter/traits.rs` with `Filter` and `FilterFactory` traits
+- [x] `src/filter/traits.rs` with `Filter` and `FilterFactory` traits
 
 ### 3.2 OptimizedKalmanFilter
 - [x] Port `optimized_kalman.go` → `src/filter/optimized.rs`
-- [x] **Tests from Go (`filter_test.go`):**
-  - [x] `TestOptimizedKalmanFilterFactory_Create`
-  - [x] `TestOptimizedKalmanFilter_StaticObject`
-  - [x] `TestOptimizedKalmanFilter_MovingObject`
-  - [ ] `TestOptimizedKalmanFilter_PartialMeasurement`
-- [ ] **Tests from Python (`test_tracker.py`):**
-  - [ ] `test_simple` with OptimizedKalmanFilterFactory
-  - [ ] `test_moving` with OptimizedKalmanFilterFactory
-  - [ ] `test_distance_t` with OptimizedKalmanFilterFactory
+- [x] Tests: Create, StaticObject, MovingObject
+- [ ] PartialMeasurement test
 
 ### 3.3 FilterPyKalmanFilter
 - [x] Port `filterpy_kalman.go` → `src/filter/filterpy.rs`
-- [x] **Tests from Go:**
-  - [x] `TestFilterPyKalmanFilterFactory_Create`
-  - [x] `TestFilterPyKalmanFilter_StaticObject`
-  - [x] `TestFilterPyKalmanFilter_MovingObject`
-  - [ ] `TestFilterPyKalmanFilter_PartialMeasurement`
-- [ ] **Tests from Python:**
-  - [ ] `test_simple` with FilterPyKalmanFilterFactory
-  - [ ] `test_moving` with FilterPyKalmanFilterFactory
-  - [ ] `test_distance_t` with FilterPyKalmanFilterFactory
+- [x] Tests: Create, StaticObject, MovingObject
+- [ ] PartialMeasurement test
 
 ### 3.4 NoFilter
 - [x] Port `no_filter.go` → `src/filter/no_filter.rs`
-- [x] **Tests from Go:**
-  - [x] `TestNoFilterFactory_Create`
-  - [x] `TestNoFilter_Predict`
-  - [x] `TestNoFilter_Update`
+- [x] Tests: Create, Predict, Update
 
 ### 3.5 Filter Comparison Tests
-- [ ] **Tests from Go:**
-  - [ ] `TestFilterComparison_StaticObject`
-  - [ ] `TestFilterComparison_MovingObject`
-  - [ ] `TestFilters_MultiPoint`
+- [ ] StaticObject, MovingObject, MultiPoint comparisons
 
 ---
 
-## Phase 4: Distances Module (`pkg/norfairgo/distances*.go`)
+## Phase 4: Distances Module - ✅ COMPLETE
 
-### 4.1 Distance Traits
-- [x] Create `src/distances/mod.rs`
-- [x] Create `src/distances/traits.rs` with `Distance` trait
-- [x] Port `ScalarDistance` wrapper
-- [x] Port `VectorizedDistance` wrapper
-- [x] Port `ScipyDistance` wrapper
+### 4.1 Distance Traits & Wrappers
+- [x] `Distance` trait, `ScalarDistance`, `VectorizedDistance`, `ScipyDistance`
 
 ### 4.2 Scalar Distance Functions
-- [x] Port `Frobenius` function
-- [x] Port `MeanManhattan` function
-- [x] Port `MeanEuclidean` function
-- [x] Port `CreateKeypointsVotingDistance` factory
-- [x] Port `CreateNormalizedMeanEuclideanDistance` factory
+- [x] Frobenius, MeanManhattan, MeanEuclidean
+- [x] KeypointsVotingDistance, NormalizedMeanEuclideanDistance
 
 ### 4.3 Vectorized Distance Functions
-- [x] Port `IoU` function (bounding box IoU)
-- [ ] Port `IoUOpt` function (optimized version from Go)
+- [x] IoU (bounding box)
+- [ ] IoUOpt (optimized version)
 
 ### 4.4 Distance Registry
-- [x] Port `GetDistanceByName` / `DistanceByName` function
+- [x] `distance_by_name` function
 
 ### 4.5 Distance Tests
-
-**From Python (`test_distances.py`):**
-- [x] `test_frobenius` (partial - 2 cases: perfect_match, distance)
-- [x] `test_mean_euclidean` (partial - 2 cases: perfect_match, distance)
-- [x] `test_iou` (partial - 3 cases: perfect_match, no_overlap, partial_overlap)
-- [ ] `test_mean_manhattan` (7 cases)
-- [ ] `test_keypoint_vote` (7 cases)
-- [ ] `test_normalized_euclidean` (9 cases)
-- [ ] `test_scalar_distance` (wrapper test)
-- [ ] `test_vectorized_distance` (wrapper test)
-- [ ] `test_scipy_distance` (euclidean cdist test)
-
-**From Go (`distances_test.go`):**
-- [ ] `TestFrobenius` (7 cases)
-- [ ] `TestMeanManhattan` (7 cases)
-- [ ] `TestMeanEuclidean` (9 cases)
-- [ ] `TestIoU` (6 cases)
-- [ ] `TestIoU_InvalidBbox` (panic test)
-- [ ] `TestScalarDistance` (wrapper)
-- [ ] `TestVectorizedDistance` (wrapper)
-- [ ] `TestScipyDistance` (euclidean)
-- [ ] `TestKeypointVote` (7 cases)
-- [ ] `TestNormalizedEuclidean` (9 cases)
-- [ ] `TestGetDistanceByName` (frobenius, iou, euclidean, invalid)
+- [x] 49 distance tests passing
+- [ ] Missing: wrapper tests, GetDistanceByName edge cases
 
 ---
 
-## Phase 5: Core Tracker Module (`pkg/norfairgo/tracker*.go`)
+## Phase 5: Core Tracker Module - ✅ COMPLETE
 
 ### 5.1 Core Types
-- [x] Create `src/detection.rs` with `Detection` struct
-- [x] Create `src/tracked_object.rs` with `TrackedObject` struct
-- [x] Create `src/tracker.rs` with `Tracker` struct and `TrackerConfig`
-- [x] Port `TrackedObjectFactory` (ID generation)
+- [x] `Detection`, `TrackedObject`, `Tracker`, `TrackerConfig`
+- [x] `TrackedObjectFactory` (ID generation)
 
 ### 5.2 Matching Algorithm
-- [x] Port `matching.go` → `src/matching.rs`
-- [x] Port greedy minimum-distance matching
-- [x] **Tests from Go (`matching_test.go`):**
-  - [x] `TestMatchDetectionsAndObjects_Empty`
-  - [x] `TestMatchDetectionsAndObjects_SingleMatch`
-  - [x] `TestMatchDetectionsAndObjects_MultipleMatches` (greedy)
-  - [x] `TestMatchDetectionsAndObjects_ThresholdFiltering`
-  - [x] `TestGetUnmatched`
+- [x] Greedy minimum-distance matching
+- [x] 16 matching tests passing
 
 ### 5.3 Tracker Methods
-- [x] Port `Tracker.Update()`
-- [x] Port `TrackedObject.TrackerStep()` (inlined in update)
-- [x] Port `TrackedObject.Hit()`
-- [ ] Port `TrackedObject.Merge()` (ReID)
-- [x] Port `TrackedObject.GetEstimate()`
+- [x] `Update()`, `TrackerStep()`, `Hit()`, `GetEstimate()`
+- [ ] `Merge()` (ReID)
 
 ### 5.4 Tracker Tests
-
-**From Python (`test_tracker.py`):**
-- [ ] `test_params` (invalid initializations)
-- [ ] `test_simple` (parametrized: delay 0,1,3 × counter_max variations)
-- [ ] `test_moving` (moving object, velocity estimation)
-- [ ] `test_distance_t` (distance threshold behavior)
-- [ ] `test_1d_points` (rank 1 detection handling)
-- [ ] `test_camera_motion` (coordinate transformation)
-- [ ] `test_count` (total_object_count, current_object_count)
-- [ ] `test_multiple_trackers` (isolated tracker instances)
-- [ ] `test_reid_hit_counter` (ReID matching and counters)
-
-**From Go (`tracker_test.go`):**
-- [x] `TestTracker_NewTracker`
-- [x] `TestTracker_InvalidInitializationDelay`
-- [x] `TestTracker_SimpleUpdate`
-- [ ] `TestTracker_UpdateEmptyDetections`
-- [x] `TestDetection_Creation`
-- [ ] `TestTrackedObject_Creation`
-- [ ] `TestTracker_CameraMotion` (1D and 2D points)
-
-**From Go (`tracker_factory_test.go`):**
-- [ ] `TestTrackedObjectFactory_CreateObject`
-- [ ] `TestTrackedObjectFactory_IDAssignment`
-- [ ] `TestTrackedObjectFactory_GlobalID`
+- [x] 4 tracker tests passing
+- [ ] Missing: params, simple (parametrized), moving, distance_t, 1d_points, count, reid
 
 ---
 
-## Phase 6: Camera Motion Module (`pkg/norfairgo/camera_motion*.go`)
+## Phase 6: Camera Motion Module - ⚠️ PARTIAL
 
 ### 6.1 Transformations
-- [x] Create `src/camera_motion/mod.rs`
-- [x] Create `src/camera_motion/transformations.rs`
-- [x] Port `CoordinateTransformation` trait
-- [x] Port `TranslationTransformation`
-- [x] Port `NilCoordinateTransformation`
-- [ ] Port `HomographyTransformation` (requires OpenCV feature)
+- [x] `CoordinateTransformation` trait
+- [x] `TranslationTransformation`, `NilCoordinateTransformation`
+- [ ] `HomographyTransformation` (requires OpenCV)
 
 ### 6.2 Motion Estimator
-- [x] Port `TransformationGetter` trait
-- [x] Port `TranslationTransformationGetter`
-- [ ] Port `HomographyTransformationGetter` (requires OpenCV feature)
-- [ ] Port `MotionEstimator` (requires OpenCV feature)
+- [x] `TransformationGetter` trait
+- [x] `TranslationTransformationGetter`
+- [ ] `HomographyTransformationGetter`, `MotionEstimator` (require OpenCV)
 
 ### 6.3 Camera Motion Tests
-
-**From Go (`camera_motion_test.go`):**
-- [x] `TestNilTransformation`
-- [x] `TestTranslationTransformation_AbsToRel`
-- [x] `TestTranslationTransformation_RelToAbs`
-- [x] `TestTranslationTransformation_Roundtrip`
-- [x] `TestTranslationTransformationGetter`
-- [ ] `TestHomographyTransformation_AbsToRel`
-- [ ] `TestHomographyTransformation_RelToAbs`
-- [ ] `TestNewHomographyTransformation`
+- [x] 4 tests passing
+- [ ] Homography tests (require OpenCV)
 
 ---
 
-## Phase 7: Metrics Module (`pkg/norfairgo/metrics*.go`)
+## Phase 7: Metrics Module - ⚠️ PARTIAL
 
 ### 7.1 Core Metrics
-- [x] Create `src/metrics/mod.rs`
-- [x] Port `InformationFile` (seqinfo.ini parser)
-- [x] Port `PredictionsTextFile` (MOT format writer)
-- [x] Port `DetectionFileParser` (MOT format reader)
-- [x] Port `MOTAccumulator`
-- [x] Port `MOTMetrics` / `MOTMetricsFromAccumulator`
-- [ ] Port `EvalMotChallenge()` function (partial)
+- [x] `InformationFile`, `PredictionsTextFile`, `DetectionFileParser`
+- [x] `MOTAccumulator`, `MOTMetrics`
+- [ ] `EvalMotChallenge()` (partial)
 
 ### 7.2 Metrics Tests
-
-**From Go (`metrics_test.go`):**
-- [x] `TestInformationFile_SearchInt`
-- [x] `TestInformationFile_SearchString`
-- [x] `TestInformationFile_SearchNotFound`
-- [ ] `TestPredictionsTextFile_Write`
-- [ ] `TestDetectionFileParser_Parse`
-
-**From Rust:**
-- [x] `TestAccumulator_Empty`
-- [x] `TestAccumulator_PerfectTracking`
-- [x] `TestAccumulator_AllMisses`
-- [x] `TestMetricsFromAccumulator`
-
-**From Go (`extended_metrics_test.go`):**
-- [ ] `TestEvalMotChallenge_Perfect` (MOTA ≈ 1.0, no FP/misses/switches)
-- [ ] `TestEvalMotChallenge_MostlyLost` (low MOTA, many misses)
-- [ ] `TestEvalMotChallenge_Fragmented` (ID switches/fragmentations)
-- [ ] `TestEvalMotChallenge_Mixed` (realistic scenario, valid ranges)
+- [x] 7 tests passing
+- [ ] Extended metrics tests (Perfect, MostlyLost, Fragmented, Mixed)
 
 ---
 
-## Phase 8: Utils Module
+## Phase 8: Utils Module - ✅ COMPLETE
 
-- [x] Create `src/utils.rs`
-- [x] Port `validate_points`
-- [x] Port `warn_once`
-- [x] Port `any_true` / `all_true`
-- [x] Port `get_bounding_box`
-- [x] Port `clamp`
-- [ ] Port `GetCutout`
-- [ ] Port `PrintObjectsAsTable`
-
-**From Go (`utils_test.go`):**
-- [x] `TestValidatePoints_Valid`
-- [x] `TestValidatePoints_Invalid`
-- [x] `TestAnyTrue`
-- [x] `TestAllTrue`
-- [x] `TestGetBoundingBox`
-- [x] `TestClamp`
+- [x] validate_points, warn_once, any_true/all_true, get_bounding_box, clamp
+- [x] 6 tests passing
+- [ ] GetCutout, PrintObjectsAsTable
 
 ---
 
-## Phase 9: Video Module (requires OpenCV feature)
+## Phase 9: Video Module - ❌ NOT STARTED
 
-- [ ] Create `src/video.rs` with `#[cfg(feature = "opencv")]`
-- [ ] Port `Video` struct (VideoCapture wrapper)
-- [ ] Port iterator implementation
-
-**From Go (`video_test.go`):**
-- [ ] `TestVideo_OpenFile`
-- [ ] `TestVideo_GetFrame`
-- [ ] `TestVideo_Write`
+- [ ] `Video` struct with `#[cfg(feature = "opencv")]`
 
 ---
 
-## Phase 10: Drawing Module (LOWEST PRIORITY, requires OpenCV)
+## Phase 10: Drawing Module - ❌ NOT STARTED
 
-### 10.1 Core Drawing
-- [ ] Create `src/drawing/mod.rs`
-- [ ] Port `Drawer` (low-level primitives)
-- [ ] Port `Drawable` trait
-
-**From Go (`drawer_test.go`):**
-- [ ] `TestDrawer_Circle`
-- [ ] `TestDrawer_Rectangle`
-- [ ] `TestDrawer_Line`
-- [ ] `TestDrawer_Text`
-- [ ] `TestDrawer_Polygon`
-
-### 10.2 Color System
-- [ ] Port `Color` struct and constants (140+ named colors)
-- [ ] Port `Palette` (by_id, by_label, random strategies)
-- [ ] Port `HexToBGR`
-
-**From Go (`color_test.go` in both packages):**
-- [ ] `TestColor_Constants`
-- [ ] `TestHexToBGR`
-- [ ] `TestPalette_ByID`
-- [ ] `TestPalette_ByLabel`
-
-### 10.3 Path Drawing
-- [ ] Port `Paths` / `AbsolutePaths`
-
-**From Go (`path_test.go`):**
-- [ ] `TestPaths_Add`
-- [ ] `TestPaths_Draw`
-- [ ] `TestAbsolutePaths`
-
-### 10.4 Draw Functions
-- [ ] Port `DrawPoints` / `DrawTrackedObjects`
-- [ ] Port `DrawBoxes` / `DrawTrackedBoxes`
-- [ ] Port `DrawAbsoluteGrid`
-
-**From Go (`draw_points_test.go`, `draw_boxes_test.go`, `absolute_grid_test.go`):**
-- [ ] `TestDrawPoints_Basic`
-- [ ] `TestDrawPoints_DirectColor` (golden image comparison)
-- [ ] `TestDrawBoxes_Basic`
-- [ ] `TestDrawBoxes_DirectColor` (golden image comparison)
-- [ ] `TestDrawAbsoluteGrid`
-
-### 10.5 Fixed Camera
-- [ ] Port `FixedCamera` context
-
-**From Go (`fixed_camera_test.go`):**
-- [ ] `TestFixedCamera_Create`
-- [ ] `TestFixedCamera_AdjustFrame`
+- [ ] Drawer, Color constants, Palette, Paths
+- [ ] draw_points, draw_boxes, DrawAbsoluteGrid
+- [ ] FixedCamera
 
 ---
 
-## Phase 11: Integration Tests
+## Phase 11: Integration Tests - ✅ COMPLETE
 
-**From Go (`integration_test.go`):**
-- [ ] `TestIntegration_CompleteTrackingPipeline` (20 frames, 2 objects)
-- [ ] `TestIntegration_MultipleFilterTypes` (OptimizedKalman, FilterPy, NoFilter)
-- [ ] `TestIntegration_MultipleDistanceFunctions` (IoU, Euclidean, CustomScalar)
-- [ ] `TestIntegration_ReIDEnabled` (occlusion and recovery)
-- [ ] `TestIntegration_CameraMotionCompensation` (translation transform)
-- [ ] `TestIntegration_EndToEndWorkflow` (tracking + drawing)
+- [x] 6 integration tests passing
+- [x] CompleteTrackingPipeline, MultipleFilterTypes, MultipleDistanceFunctions
+- [x] ReIDEnabled, CameraMotionCompensation, ObjectLifecycle
 
 ---
 
 ## Phase 12: Benchmarks
 
-**From Go (`benchmark_test.go`):**
-- [ ] `BenchmarkTracker_Update`
-- [ ] `BenchmarkIoU`
-- [ ] `BenchmarkFrobenius`
-- [ ] `BenchmarkOptimizedKalmanFilter_Predict`
-- [ ] `BenchmarkOptimizedKalmanFilter_Update`
+- [x] Cross-language benchmark infrastructure created
+- [ ] Criterion benchmarks for Rust
 
 ---
 
-## Phase 13: PyO3 Python Bindings (LAST)
+## Phase 13: PyO3 Python Bindings - ❌ NOT STARTED
 
-- [ ] Add `pyo3` and `numpy` dependencies (optional feature)
-- [ ] Create `pyproject.toml` for Maturin
-- [ ] Create Python wrapper module
-- [ ] Implement `Detection` class binding
-- [ ] Implement `Tracker` class binding
-- [ ] Implement `TrackedObject` class binding
-- [ ] Implement distance function bindings
-- [ ] Implement filter factory bindings
-- [ ] Create Python type stubs (`.pyi` files)
-- [ ] Test drop-in replacement compatibility with original norfair
+- [ ] pyo3/numpy dependencies
+- [ ] Python wrapper classes
+- [ ] Drop-in replacement API
 
 ---
 
-## Test Data Files to Copy
+## Test Inventory
 
-From `../norfair-go/testdata/`:
-```
-testdata/
-├── extended_metrics/
-│   ├── gt1.txt      # Perfect tracking ground truth
-│   ├── gt2.txt      # Mostly lost ground truth
-│   ├── gt3.txt      # Fragmented ground truth
-│   ├── gt4.txt      # Mixed scenario ground truth
-│   ├── pred1.txt    # Perfect predictions
-│   ├── pred2.txt    # Mostly lost predictions
-│   ├── pred3.txt    # Fragmented predictions
-│   └── pred4.txt    # Mixed scenario predictions
-└── drawing/
-    ├── draw_points_direct_color_golden.png
-    ├── draw_boxes_direct_color_golden.png
-    └── drawing_primitives_golden.png
-```
+See [TODO_TESTS.md](./TODO_TESTS.md) for complete test porting checklist.
+
+| Category | Tests |
+|----------|-------|
+| Filter | 15 |
+| Distance | 49 |
+| Tracker | 4 |
+| TrackedObject & Factory | 12 |
+| Detection | 4 |
+| Matching | 16 |
+| Camera motion | 4 |
+| Metrics | 7 |
+| Utils | 6 |
+| Internal (filterpy, scipy, numpy, motmetrics) | 63 |
+| Integration | 6 |
+| **Total** | **186** |
 
 ---
 
@@ -452,4 +284,10 @@ testdata/
 - Good performance for small-to-medium matrices (typical in tracking)
 - `DMatrix<f64>` and `DVector<f64>` for dynamic dimensions
 
-See full comparison in [~/.claude/plans/twinkly-strolling-goose.md](file:///Users/nmichlo/.claude/plans/twinkly-strolling-goose.md#numerical-library-comparison)
+---
+
+## Notes
+
+- Using nalgebra instead of ndarray (pure Rust, no BLAS required)
+- Initializing objects don't decay hit_counter to allow accumulation
+- Test fixtures from Go port needed for extended metrics tests

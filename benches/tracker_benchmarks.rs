@@ -7,8 +7,8 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use nalgebra::DMatrix;
 
-use norfair_rs::distances::distance_by_name;
-use norfair_rs::filter::{FilterPyKalmanFilterFactory, NoFilterFactory, OptimizedKalmanFilterFactory};
+use norfair_rs::distances::distance_function_by_name;
+use norfair_rs::filter::{FilterFactoryEnum, FilterPyKalmanFilterFactory, NoFilterFactory, OptimizedKalmanFilterFactory};
 use norfair_rs::{Detection, Tracker, TrackerConfig};
 
 /// Create test detections for benchmarking.
@@ -27,10 +27,10 @@ fn create_test_detections(n: usize) -> Vec<Detection> {
 
 /// Ported from Go: BenchmarkTrackerUpdate_10Objects
 fn benchmark_tracker_update_10_objects(c: &mut Criterion) {
-    let mut config = TrackerConfig::new(distance_by_name("euclidean"), 50.0);
+    let mut config = TrackerConfig::new(distance_function_by_name("euclidean"), 50.0);
     config.hit_counter_max = 30;
     config.initialization_delay = 3;
-    config.filter_factory = Box::new(OptimizedKalmanFilterFactory::new(4.0, 0.1, 10.0, 0.0, 1.0));
+    config.filter_factory = FilterFactoryEnum::Optimized(OptimizedKalmanFilterFactory::new(4.0, 0.1, 10.0, 0.0, 1.0));
 
     let mut tracker = Tracker::new(config).expect("valid tracker");
     let detections = create_test_detections(10);
@@ -44,10 +44,10 @@ fn benchmark_tracker_update_10_objects(c: &mut Criterion) {
 
 /// Ported from Go: BenchmarkTrackerUpdate_50Objects
 fn benchmark_tracker_update_50_objects(c: &mut Criterion) {
-    let mut config = TrackerConfig::new(distance_by_name("euclidean"), 50.0);
+    let mut config = TrackerConfig::new(distance_function_by_name("euclidean"), 50.0);
     config.hit_counter_max = 30;
     config.initialization_delay = 3;
-    config.filter_factory = Box::new(OptimizedKalmanFilterFactory::new(4.0, 0.1, 10.0, 0.0, 1.0));
+    config.filter_factory = FilterFactoryEnum::Optimized(OptimizedKalmanFilterFactory::new(4.0, 0.1, 10.0, 0.0, 1.0));
 
     let mut tracker = Tracker::new(config).expect("valid tracker");
     let detections = create_test_detections(50);
@@ -61,10 +61,10 @@ fn benchmark_tracker_update_50_objects(c: &mut Criterion) {
 
 /// Ported from Go: BenchmarkTrackerUpdate_100Objects
 fn benchmark_tracker_update_100_objects(c: &mut Criterion) {
-    let mut config = TrackerConfig::new(distance_by_name("euclidean"), 50.0);
+    let mut config = TrackerConfig::new(distance_function_by_name("euclidean"), 50.0);
     config.hit_counter_max = 30;
     config.initialization_delay = 3;
-    config.filter_factory = Box::new(OptimizedKalmanFilterFactory::new(4.0, 0.1, 10.0, 0.0, 1.0));
+    config.filter_factory = FilterFactoryEnum::Optimized(OptimizedKalmanFilterFactory::new(4.0, 0.1, 10.0, 0.0, 1.0));
 
     let mut tracker = Tracker::new(config).expect("valid tracker");
     let detections = create_test_detections(100);
@@ -78,10 +78,10 @@ fn benchmark_tracker_update_100_objects(c: &mut Criterion) {
 
 /// Ported from Go: BenchmarkTrackerUpdate_100Objects_FilterPyKalman
 fn benchmark_tracker_update_100_objects_filterpy_kalman(c: &mut Criterion) {
-    let mut config = TrackerConfig::new(distance_by_name("euclidean"), 50.0);
+    let mut config = TrackerConfig::new(distance_function_by_name("euclidean"), 50.0);
     config.hit_counter_max = 30;
     config.initialization_delay = 3;
-    config.filter_factory = Box::new(FilterPyKalmanFilterFactory::new(4.0, 0.1, 10.0));
+    config.filter_factory = FilterFactoryEnum::FilterPy(FilterPyKalmanFilterFactory::new(4.0, 0.1, 10.0));
 
     let mut tracker = Tracker::new(config).expect("valid tracker");
     let detections = create_test_detections(100);
@@ -95,10 +95,10 @@ fn benchmark_tracker_update_100_objects_filterpy_kalman(c: &mut Criterion) {
 
 /// Ported from Go: BenchmarkTrackerUpdate_100Objects_NoFilter
 fn benchmark_tracker_update_100_objects_no_filter(c: &mut Criterion) {
-    let mut config = TrackerConfig::new(distance_by_name("euclidean"), 50.0);
+    let mut config = TrackerConfig::new(distance_function_by_name("euclidean"), 50.0);
     config.hit_counter_max = 30;
     config.initialization_delay = 3;
-    config.filter_factory = Box::new(NoFilterFactory);
+    config.filter_factory = FilterFactoryEnum::None(NoFilterFactory);
 
     let mut tracker = Tracker::new(config).expect("valid tracker");
     let detections = create_test_detections(100);
@@ -112,10 +112,10 @@ fn benchmark_tracker_update_100_objects_no_filter(c: &mut Criterion) {
 
 /// Ported from Go: BenchmarkTrackerUpdate_100Objects_IoU
 fn benchmark_tracker_update_100_objects_iou(c: &mut Criterion) {
-    let mut config = TrackerConfig::new(distance_by_name("iou"), 0.5);
+    let mut config = TrackerConfig::new(distance_function_by_name("iou"), 0.5);
     config.hit_counter_max = 30;
     config.initialization_delay = 3;
-    config.filter_factory = Box::new(OptimizedKalmanFilterFactory::new(4.0, 0.1, 10.0, 0.0, 1.0));
+    config.filter_factory = FilterFactoryEnum::Optimized(OptimizedKalmanFilterFactory::new(4.0, 0.1, 10.0, 0.0, 1.0));
 
     let mut tracker = Tracker::new(config).expect("valid tracker");
     let detections = create_test_detections(100);

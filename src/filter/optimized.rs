@@ -227,6 +227,36 @@ impl OptimizedKalmanFilterFactory {
             vel_variance,
         }
     }
+
+    /// Get measurement noise variance.
+    #[inline(always)]
+    pub fn r(&self) -> f64 {
+        self.r
+    }
+
+    /// Get process noise variance.
+    #[inline(always)]
+    pub fn q(&self) -> f64 {
+        self.q
+    }
+
+    /// Get initial position variance.
+    #[inline(always)]
+    pub fn pos_variance(&self) -> f64 {
+        self.pos_variance
+    }
+
+    /// Get initial position-velocity covariance.
+    #[inline(always)]
+    pub fn pos_vel_covariance(&self) -> f64 {
+        self.pos_vel_covariance
+    }
+
+    /// Get initial velocity variance.
+    #[inline(always)]
+    pub fn vel_variance(&self) -> f64 {
+        self.vel_variance
+    }
 }
 
 impl Default for OptimizedKalmanFilterFactory {

@@ -99,10 +99,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Import norfair components
     use norfair_rs::{Detection, Tracker, TrackerConfig};
-    use norfair_rs::distances::distance_by_name;
+    use norfair_rs::distances::distance_function_by_name;
 
     // Create tracker with standard settings
-    let mut config = TrackerConfig::new(distance_by_name("iou"), 0.5);
+    let mut config = TrackerConfig::new(distance_function_by_name("iou"), 0.5);
     config.hit_counter_max = 15;
     config.initialization_delay = 3;
 
@@ -114,7 +114,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Reset tracker
-    let mut config = TrackerConfig::new(distance_by_name("iou"), 0.5);
+    let mut config = TrackerConfig::new(distance_function_by_name("iou"), 0.5);
     config.hit_counter_max = 15;
     config.initialization_delay = 3;
     let mut tracker = Tracker::new(config)?;

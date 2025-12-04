@@ -2,6 +2,7 @@
 //!
 //! This module provides:
 //! - `Distance` trait for all distance implementations
+//! - `DistanceFunction` - enum-based static dispatch (preferred for performance)
 //! - `ScalarDistance` - wrapper for per-pair distance functions
 //! - `VectorizedDistance` - wrapper for batch distance functions
 //! - `ScipyDistance` - wrapper for scipy-style cdist metrics
@@ -12,12 +13,14 @@ mod scalar;
 mod vectorized;
 mod scipy_wrapper;
 mod functions;
+mod dispatch;
 
 pub use traits::Distance;
 pub use scalar::ScalarDistance;
 pub use vectorized::VectorizedDistance;
 pub use scipy_wrapper::ScipyDistance;
 pub use functions::*;
+pub use dispatch::{DistanceFunction, distance_function_by_name};
 
 use crate::{Error, Result};
 
@@ -93,7 +96,7 @@ mod tests {
             estimate: estimate_matrix.clone(),
             estimate_velocity: DMatrix::zeros(rows, cols),
             is_initializing: false,
-            filter: Box::new(crate::filter::NoFilter::new(&estimate_matrix)),
+            filter: crate::filter::FilterEnum::None(crate::filter::NoFilter::new(&estimate_matrix)),
             num_points: rows,
             dim_points: cols,
             last_coord_transform: None,

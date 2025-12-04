@@ -136,6 +136,24 @@ impl FilterPyKalmanFilterFactory {
     pub fn new(r: f64, q: f64, p: f64) -> Self {
         Self { r, q, p }
     }
+
+    /// Get measurement noise variance.
+    #[inline(always)]
+    pub fn r(&self) -> f64 {
+        self.r
+    }
+
+    /// Get process noise variance.
+    #[inline(always)]
+    pub fn q(&self) -> f64 {
+        self.q
+    }
+
+    /// Get initial position variance.
+    #[inline(always)]
+    pub fn p(&self) -> f64 {
+        self.p
+    }
 }
 
 impl Default for FilterPyKalmanFilterFactory {

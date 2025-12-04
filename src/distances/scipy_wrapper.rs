@@ -9,6 +9,7 @@ use super::traits::Distance;
 /// Wrapper for scipy-style distance metrics.
 ///
 /// Uses cdist to compute pairwise distances with a specified metric.
+#[derive(Clone)]
 pub struct ScipyDistance {
     metric: String,
 }

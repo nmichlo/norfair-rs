@@ -11,6 +11,7 @@ pub type ScalarDistanceFn = fn(&Detection, &TrackedObject) -> f64;
 ///
 /// Takes a function that computes distance between a single detection
 /// and tracked object pair, and produces a full distance matrix.
+#[derive(Clone, Copy)]
 pub struct ScalarDistance {
     distance_fn: ScalarDistanceFn,
 }

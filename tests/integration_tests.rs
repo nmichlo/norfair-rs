@@ -3,9 +3,9 @@
 //! These tests verify complete tracking workflows across multiple modules.
 
 use norfair_rs::{
-    Detection, FilterFactory, Tracker, TrackerConfig,
-    filter::{FilterPyKalmanFilterFactory, NoFilterFactory, OptimizedKalmanFilterFactory},
-    distances::distance_by_name,
+    Detection, Tracker, TrackerConfig,
+    filter::{FilterFactoryEnum, FilterPyKalmanFilterFactory, NoFilterFactory, OptimizedKalmanFilterFactory},
+    distances::distance_function_by_name,
     camera_motion::TranslationTransformation,
 };
 
@@ -88,18 +88,18 @@ fn test_integration_complete_tracking_pipeline() {
 
 #[test]
 fn test_integration_multiple_filter_types() {
-    let filter_configs: Vec<(&str, Box<dyn FilterFactory>)> = vec![
+    let filter_configs: Vec<(&str, FilterFactoryEnum)> = vec![
         (
             "OptimizedKalman",
-            Box::new(OptimizedKalmanFilterFactory::new(4.0, 0.1, 10.0, 0.0, 1.0)),
+            FilterFactoryEnum::Optimized(OptimizedKalmanFilterFactory::new(4.0, 0.1, 10.0, 0.0, 1.0)),
         ),
         (
             "FilterPyKalman",
-            Box::new(FilterPyKalmanFilterFactory::new(4.0, 0.1, 10.0)),
+            FilterFactoryEnum::FilterPy(FilterPyKalmanFilterFactory::new(4.0, 0.1, 10.0)),
         ),
         (
             "NoFilter",
-            Box::new(NoFilterFactory::new()),
+            FilterFactoryEnum::None(NoFilterFactory::new()),
         ),
     ];
 
@@ -156,7 +156,7 @@ fn test_integration_multiple_distance_functions() {
     // Note: IoU distance = 1 - IoU, so threshold 0.8 gives more matching tolerance
     // Box format: [x1, y1, x2, y2] as 1 row x 4 columns
     {
-        let mut config = TrackerConfig::new(distance_by_name("iou"), 0.8);
+        let mut config = TrackerConfig::new(distance_function_by_name("iou"), 0.8);
         config.hit_counter_max = 10;
         config.initialization_delay = 2;  // Need 2 hits to initialize
         config.pointwise_hit_counter_max = 4;

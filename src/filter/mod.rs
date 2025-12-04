@@ -4,16 +4,19 @@
 //! - `OptimizedKalmanFilter` - Simplified, fast covariance tracking
 //! - `FilterPyKalmanFilter` - Full Kalman filter (filterpy-compatible)
 //! - `NoFilter` - Baseline without prediction
+//! - `FilterEnum` / `FilterFactoryEnum` - Enum-based static dispatch (preferred for performance)
 
 mod traits;
 mod optimized;
 mod filterpy;
 mod no_filter;
+mod dispatch;
 
 pub use traits::{Filter, FilterFactory};
 pub use optimized::{OptimizedKalmanFilter, OptimizedKalmanFilterFactory};
 pub use filterpy::{FilterPyKalmanFilter, FilterPyKalmanFilterFactory};
 pub use no_filter::{NoFilter, NoFilterFactory};
+pub use dispatch::{FilterEnum, FilterFactoryEnum};
 
 #[cfg(test)]
 mod tests {

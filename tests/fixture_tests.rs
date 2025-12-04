@@ -10,7 +10,7 @@ use serde::Deserialize;
 use std::fs;
 use std::path::PathBuf;
 
-use norfair_rs::distances::distance_by_name;
+use norfair_rs::distances::distance_function_by_name;
 use norfair_rs::{Detection, Tracker, TrackerConfig};
 
 // ============================================================================
@@ -99,7 +99,7 @@ fn load_fixture(scenario: &str) -> Fixture {
 
 fn create_tracker(config: &TrackerConfigJson) -> Tracker {
     let mut tracker_config =
-        TrackerConfig::new(distance_by_name(&config.distance_function), config.distance_threshold);
+        TrackerConfig::new(distance_function_by_name(&config.distance_function), config.distance_threshold);
     tracker_config.hit_counter_max = config.hit_counter_max;
     tracker_config.initialization_delay = config.initialization_delay;
 

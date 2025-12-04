@@ -39,12 +39,13 @@ Cross-language performance comparison (IoU distance, OptimizedKalmanFilter):
 
 | Scenario | Frames | Detections | Python | Go | Rust |
 |----------|--------|------------|--------|-----|------|
-| Small | 100 | 446 | 5,077 fps | 252,578 fps | **148,469 fps** |
-| Medium | 500 | 9,015 | 560 fps | 35,195 fps | **63,497 fps** |
-| Large | 1,000 | 44,996 | 105 fps | 3,934 fps | **32,778 fps** |
-| Stress | 2,000 | 179,789 | 28 fps | 546 fps | **16,510 fps** |
+| Small | 100 | 446 | 5,077 fps | 282,518 fps | **413,081 fps** |
+| Medium | 500 | 9,015 | 560 fps | 32,210 fps | **93,049 fps** |
+| Large | 1,000 | 44,996 | 105 fps | 3,934 fps | **38,621 fps** |
+| Stress | 2,000 | 179,789 | 28 fps | 546 fps | **18,169 fps** |
 
-**Speedup vs Python:** 30-600x depending on scenario complexity.
+**Speedup vs Python:** 80-650x depending on scenario complexity.
+**Speedup vs Go:** 1.5-3x depending on scenario complexity.
 
 Benchmarks run on Apple M3 Pro. See `examples/benchmark/` for reproduction scripts.
 

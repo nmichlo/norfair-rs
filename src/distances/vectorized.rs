@@ -14,6 +14,7 @@ pub type VectorizedDistanceFn = fn(&DMatrix<f64>, &DMatrix<f64>) -> DMatrix<f64>
 ///
 /// Takes a function that computes distances in batch (e.g., IoU)
 /// and handles label filtering.
+#[derive(Clone, Copy)]
 pub struct VectorizedDistance {
     distance_fn: VectorizedDistanceFn,
 }

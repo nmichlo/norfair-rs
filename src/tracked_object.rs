@@ -4,7 +4,8 @@ use std::collections::VecDeque;
 use std::fmt;
 use std::sync::atomic::{AtomicI32, Ordering};
 use nalgebra::DMatrix;
-use crate::{Detection, Filter};
+use crate::Detection;
+use crate::filter::FilterEnum;
 use crate::camera_motion::CoordinateTransformation;
 
 /// Global ID counter for unique IDs across all factories.
@@ -136,8 +137,8 @@ pub struct TrackedObject {
     /// Whether the object is still in initialization phase.
     pub is_initializing: bool,
 
-    /// The Kalman filter maintaining this object's state.
-    pub(crate) filter: Box<dyn Filter>,
+    /// The Kalman filter maintaining this object's state (enum-based static dispatch).
+    pub(crate) filter: FilterEnum,
 
     /// Number of points being tracked.
     pub(crate) num_points: usize,
@@ -222,7 +223,7 @@ impl Default for TrackedObject {
             estimate: DMatrix::zeros(1, 2),
             estimate_velocity: DMatrix::zeros(1, 2),
             is_initializing: true,
-            filter: Box::new(crate::filter::NoFilter::new(&DMatrix::zeros(1, 2))),
+            filter: FilterEnum::None(crate::filter::NoFilter::new(&DMatrix::zeros(1, 2))),
             num_points: 1,
             dim_points: 2,
             last_coord_transform: None,

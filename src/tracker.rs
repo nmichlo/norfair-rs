@@ -4,9 +4,9 @@ use std::collections::VecDeque;
 use std::sync::atomic::{AtomicI32, Ordering};
 use nalgebra::{DMatrix, DVector};
 
-use crate::{Detection, TrackedObject, Distance, FilterFactory, Error, Result};
-use crate::filter::OptimizedKalmanFilterFactory;
-use crate::distances::distance_by_name;
+use crate::{Detection, TrackedObject, Error, Result};
+use crate::filter::FilterFactoryEnum;
+use crate::distances::{DistanceFunction, distance_function_by_name};
 use crate::matching::{match_detections_and_objects, get_unmatched};
 use crate::camera_motion::CoordinateTransformation;
 use crate::internal::numpy::to_row_major_vec;
@@ -17,8 +17,8 @@ static GLOBAL_ID_COUNTER: AtomicI32 = AtomicI32::new(0);
 /// Configuration for the tracker.
 #[derive(Clone)]
 pub struct TrackerConfig {
-    /// Distance function for matching detections to objects.
-    pub distance_function: Box<dyn Distance>,
+    /// Distance function for matching detections to objects (enum-based static dispatch).
+    pub distance_function: DistanceFunction,
 
     /// Maximum distance threshold for valid matches.
     pub distance_threshold: f64,
@@ -35,14 +35,14 @@ pub struct TrackerConfig {
     /// Minimum score for a detection point to be considered.
     pub detection_threshold: f64,
 
-    /// Factory for creating Kalman filters.
-    pub filter_factory: Box<dyn FilterFactory>,
+    /// Factory for creating Kalman filters (enum-based static dispatch).
+    pub filter_factory: FilterFactoryEnum,
 
     /// Number of past detections to store for re-identification.
     pub past_detections_length: usize,
 
     /// Optional distance function for re-identification.
-    pub reid_distance_function: Option<Box<dyn Distance>>,
+    pub reid_distance_function: Option<DistanceFunction>,
 
     /// Distance threshold for re-identification.
     pub reid_distance_threshold: f64,
@@ -52,12 +52,12 @@ pub struct TrackerConfig {
 }
 
 impl TrackerConfig {
-    /// Create a new tracker configuration.
+    /// Create a new tracker configuration with enum-based dispatch.
     ///
     /// # Arguments
     /// * `distance_function` - Distance function for matching
     /// * `distance_threshold` - Maximum match distance
-    pub fn new(distance_function: Box<dyn Distance>, distance_threshold: f64) -> Self {
+    pub fn new(distance_function: DistanceFunction, distance_threshold: f64) -> Self {
         Self {
             distance_function,
             distance_threshold,
@@ -65,7 +65,7 @@ impl TrackerConfig {
             initialization_delay: -1, // Will be set to hit_counter_max / 2
             pointwise_hit_counter_max: 4,
             detection_threshold: 0.0,
-            filter_factory: Box::new(OptimizedKalmanFilterFactory::default()),
+            filter_factory: FilterFactoryEnum::default(),
             past_detections_length: 4,
             reid_distance_function: None,
             reid_distance_threshold: 1.0,
@@ -75,21 +75,7 @@ impl TrackerConfig {
 
     /// Create configuration from a distance function name.
     pub fn from_distance_name(name: &str, distance_threshold: f64) -> Self {
-        Self::new(distance_by_name(name), distance_threshold)
-    }
-}
-
-impl Clone for Box<dyn Distance> {
-    fn clone(&self) -> Self {
-        // Distance functions are typically stateless, so we can safely create new ones
-        // This is a simplified approach - in practice you might want a Clone trait bound
-        distance_by_name("euclidean") // Default fallback
-    }
-}
-
-impl Clone for Box<dyn FilterFactory> {
-    fn clone(&self) -> Self {
-        Box::new(OptimizedKalmanFilterFactory::default())
+        Self::new(distance_function_by_name(name), distance_threshold)
     }
 }
 
@@ -361,8 +347,8 @@ impl Tracker {
         let num_points = detection.num_points();
         let dim_points = detection.num_dims();
 
-        // Create filter
-        let filter = self.config.filter_factory.create_filter(detection.get_absolute_points());
+        // Create filter (use enum-based factory for static dispatch)
+        let filter = self.config.filter_factory.create(detection.get_absolute_points());
 
         // Initialize point hit counters
         let point_hit_counter = vec![period.min(self.config.pointwise_hit_counter_max); num_points];

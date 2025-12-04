@@ -50,21 +50,22 @@ pub fn match_detections_and_objects(
     // Sort by distance (ascending)
     pairs.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
 
-    // Greedy matching
+    // Greedy matching with Vec<bool> (faster than HashSet)
+    let mut used_dets = vec![false; n_detections];
+    let mut used_objs = vec![false; n_objects];
+
     let mut matched_dets = Vec::new();
     let mut matched_objs = Vec::new();
-    let mut used_dets = std::collections::HashSet::new();
-    let mut used_objs = std::collections::HashSet::new();
 
     for (_dist, det_idx, obj_idx) in pairs {
-        if used_dets.contains(&det_idx) || used_objs.contains(&obj_idx) {
+        if used_dets[det_idx] || used_objs[obj_idx] {
             continue;
         }
 
         matched_dets.push(det_idx);
         matched_objs.push(obj_idx);
-        used_dets.insert(det_idx);
-        used_objs.insert(obj_idx);
+        used_dets[det_idx] = true;
+        used_objs[obj_idx] = true;
     }
 
     (matched_dets, matched_objs)
@@ -72,8 +73,11 @@ pub fn match_detections_and_objects(
 
 /// Get unmatched indices from a match result.
 pub fn get_unmatched(total: usize, matched: &[usize]) -> Vec<usize> {
-    let matched_set: std::collections::HashSet<_> = matched.iter().cloned().collect();
-    (0..total).filter(|i| !matched_set.contains(i)).collect()
+    let mut is_matched = vec![false; total];
+    for &idx in matched {
+        is_matched[idx] = true;
+    }
+    (0..total).filter(|&i| !is_matched[i]).collect()
 }
 
 #[cfg(test)]

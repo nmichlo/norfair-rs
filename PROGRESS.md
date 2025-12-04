@@ -84,23 +84,33 @@
 
 ## Test Status
 
-Current: **62 tests passing**
+Current: **186 tests passing** (180 unit tests + 6 integration tests)
 
 ### Tests Implemented
-- Filter tests (6)
-  - OptimizedKalmanFilter: create, static, moving
-  - FilterPyKalmanFilter: create, static, moving
+- Filter tests (15)
+  - OptimizedKalmanFilter: create, static, moving, partial_measurement
+  - FilterPyKalmanFilter: create, static, moving, partial_measurement
   - NoFilter: create, predict_noop, update
-- Distance tests (8)
-  - frobenius: perfect_match, distance
-  - mean_euclidean: perfect_match, distance
-  - iou: perfect_match, no_overlap, partial_overlap
+  - Filter comparison tests: static, moving, multipoint
+- Distance tests (49)
+  - frobenius: perfect_match, distance, negative, floats (7)
+  - mean_euclidean: all dimensions, negative, floats (9)
+  - mean_manhattan: all dimensions, negative, floats (7)
+  - iou: perfect_match, no_overlap, partial_overlap, containment (7)
+  - keypoints_voting: threshold tests (5)
+  - normalized_euclidean: dimension tests (6)
+  - scipy cdist: euclidean, manhattan, cosine, chebyshev (14)
 - Tracker tests (4)
   - new, invalid_config, simple_update, initialization
+- TrackedObject & Factory tests (12)
+  - TrackedObjectFactory: IDs, concurrent access, uniqueness (9)
+  - TrackedObject: default, live_points, get_estimate (3)
 - Detection tests (4)
   - new, from_slice, with_scores, with_label
-- Matching tests (5)
+- Matching tests (16)
   - empty, single, threshold, greedy, get_unmatched
+  - edge cases: nan, inf, all_above_threshold
+  - constraint tests: one_to_one, more_detections, more_objects
 - Camera motion tests (4)
   - nil_transformation, translation_transformation, translation_roundtrip, translation_getter
 - Metrics tests (7)
@@ -109,19 +119,38 @@ Current: **62 tests passing**
   - evaluation: metrics_from_accumulator
 - Utils tests (6)
   - validate_points (valid, invalid), any_true, all_true, get_bounding_box, clamp
-- Internal tests (14)
-  - filterpy kalman: create, predict, update
-  - scipy distance: cdist (euclidean, manhattan, cosine, chebyshev)
-  - numpy array: validate_points_1d, validate_points_2d, flatten, reshape
-  - motmetrics: accumulator tests, iou tests
+- Internal tests
+  - filterpy kalman: create, predict, update, getters, multidimensional, predict_update_cycle (6)
+  - scipy distance: cdist (euclidean, manhattan, cosine, chebyshev, identical, single) (14)
+  - scipy optimize: linear_sum_assignment (12)
+  - numpy array: validate_points, linspace, flatten, reshape (15)
+  - motmetrics accumulator: comprehensive tests (21)
+  - motmetrics iou: overlap tests (3)
+- Integration tests (6)
+  - complete_tracking_pipeline
+  - multiple_filter_types
+  - multiple_distance_functions
+  - reid_enabled
+  - camera_motion_compensation
+  - object_lifecycle
 
 ## Next Steps
 
-1. Copy test fixtures from Go port (testdata/ directory)
-2. Port remaining Python tests
-3. Port Go-specific equivalence tests
-4. Implement opencv-dependent features behind feature flag
-5. Create PyO3 bindings
+### Immediate Tasks
+1. [x] Write README.md (similar to Go port structure)
+2. [ ] Create cross-language benchmarks (examples/benchmark/)
+   - Pre-generated deterministic test data
+   - Python, Go, and Rust implementations
+   - Performance comparison tooling
+3. [ ] Implement OpenCV-dependent features behind feature flag
+   - [ ] HomographyTransformation
+   - [ ] MotionEstimator
+   - [ ] Video module
+   - [ ] Drawing module
+
+### Future Tasks
+4. [ ] Create PyO3 bindings for Python compatibility
+5. [ ] Add remaining Python/Go equivalence tests with fixture data
 
 ## Build Commands
 

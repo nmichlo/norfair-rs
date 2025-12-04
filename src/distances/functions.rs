@@ -222,6 +222,17 @@ mod tests {
         }
     }
 
+    fn make_detection_with_scores(points: &[f64], n_rows: usize, n_cols: usize, scores: &[f64]) -> Detection {
+        Detection {
+            points: DMatrix::from_row_slice(n_rows, n_cols, points),
+            scores: Some(scores.to_vec()),
+            label: None,
+            embedding: None,
+            data: None,
+            absolute_points: None,
+        }
+    }
+
     fn make_object(points: &[f64], n_rows: usize, n_cols: usize) -> TrackedObject {
         TrackedObject {
             id: None,
@@ -234,6 +245,28 @@ mod tests {
         }
     }
 
+    fn make_object_with_scores(points: &[f64], n_rows: usize, n_cols: usize, scores: &[f64]) -> TrackedObject {
+        let det = Detection {
+            points: DMatrix::from_row_slice(n_rows, n_cols, points),
+            scores: Some(scores.to_vec()),
+            label: None,
+            embedding: None,
+            data: None,
+            absolute_points: None,
+        };
+        TrackedObject {
+            id: None,
+            global_id: 0,
+            initializing_id: None,
+            estimate: DMatrix::from_row_slice(n_rows, n_cols, points),
+            label: None,
+            last_detection: Some(det),
+            ..Default::default()
+        }
+    }
+
+    // ===== Frobenius Distance Tests =====
+
     #[test]
     fn test_frobenius_perfect_match() {
         let det = make_detection(&[1.0, 2.0, 3.0, 4.0], 2, 2);
@@ -242,12 +275,104 @@ mod tests {
     }
 
     #[test]
-    fn test_frobenius_distance() {
+    fn test_frobenius_perfect_match_floats() {
+        let det = make_detection(&[1.1, 2.2, 3.3, 4.4], 2, 2);
+        let obj = make_object(&[1.1, 2.2, 3.3, 4.4], 2, 2);
+        assert_relative_eq!(frobenius(&det, &obj), 0.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_frobenius_distance_1d_1point() {
+        let det = make_detection(&[1.0, 2.0, 3.0, 4.0], 2, 2);
+        let obj = make_object(&[2.0, 2.0, 3.0, 4.0], 2, 2);
+        assert_relative_eq!(frobenius(&det, &obj), 1.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_frobenius_distance_2d_1point() {
+        let det = make_detection(&[1.0, 2.0, 3.0, 4.0], 2, 2);
+        let obj = make_object(&[3.0, 2.0, 3.0, 4.0], 2, 2);
+        assert_relative_eq!(frobenius(&det, &obj), 2.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_frobenius_distance_all_dims() {
         let det = make_detection(&[1.0, 2.0, 3.0, 4.0], 2, 2);
         let obj = make_object(&[2.0, 3.0, 4.0, 5.0], 2, 2);
         // sqrt(1+1+1+1) = sqrt(4) = 2.0
         assert_relative_eq!(frobenius(&det, &obj), 2.0, epsilon = 1e-10);
     }
+
+    #[test]
+    fn test_frobenius_negative_difference() {
+        let det = make_detection(&[1.0, 2.0, 3.0, 4.0], 2, 2);
+        let obj = make_object(&[-1.0, 2.0, 3.0, 4.0], 2, 2);
+        assert_relative_eq!(frobenius(&det, &obj), 2.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_frobenius_negative_equals() {
+        let det = make_detection(&[-1.0, 2.0, 3.0, 4.0], 2, 2);
+        let obj = make_object(&[-1.0, 2.0, 3.0, 4.0], 2, 2);
+        assert_relative_eq!(frobenius(&det, &obj), 0.0, epsilon = 1e-10);
+    }
+
+    // ===== Mean Manhattan Distance Tests =====
+
+    #[test]
+    fn test_mean_manhattan_perfect_match() {
+        let det = make_detection(&[1.0, 2.0, 3.0, 4.0], 2, 2);
+        let obj = make_object(&[1.0, 2.0, 3.0, 4.0], 2, 2);
+        assert_relative_eq!(mean_manhattan(&det, &obj), 0.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_mean_manhattan_perfect_match_floats() {
+        let det = make_detection(&[1.1, 2.2, 3.3, 4.4], 2, 2);
+        let obj = make_object(&[1.1, 2.2, 3.3, 4.4], 2, 2);
+        assert_relative_eq!(mean_manhattan(&det, &obj), 0.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_mean_manhattan_distance_1d_1point() {
+        let det = make_detection(&[1.0, 2.0, 3.0, 4.0], 2, 2);
+        let obj = make_object(&[2.0, 2.0, 3.0, 4.0], 2, 2);
+        // (1+0) / 2 = 0.5
+        assert_relative_eq!(mean_manhattan(&det, &obj), 0.5, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_mean_manhattan_distance_2d_1point() {
+        let det = make_detection(&[1.0, 2.0, 3.0, 4.0], 2, 2);
+        let obj = make_object(&[3.0, 2.0, 3.0, 4.0], 2, 2);
+        // (2+0) / 2 = 1.0
+        assert_relative_eq!(mean_manhattan(&det, &obj), 1.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_mean_manhattan_distance_all_dims() {
+        let det = make_detection(&[1.0, 2.0, 3.0, 4.0], 2, 2);
+        let obj = make_object(&[2.0, 3.0, 4.0, 5.0], 2, 2);
+        // (2+2) / 2 = 2.0
+        assert_relative_eq!(mean_manhattan(&det, &obj), 2.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_mean_manhattan_negative_difference() {
+        let det = make_detection(&[1.0, 2.0, 3.0, 4.0], 2, 2);
+        let obj = make_object(&[-1.0, 2.0, 3.0, 4.0], 2, 2);
+        // (2+0) / 2 = 1.0
+        assert_relative_eq!(mean_manhattan(&det, &obj), 1.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_mean_manhattan_negative_equals() {
+        let det = make_detection(&[-1.0, 2.0, 3.0, 4.0], 2, 2);
+        let obj = make_object(&[-1.0, 2.0, 3.0, 4.0], 2, 2);
+        assert_relative_eq!(mean_manhattan(&det, &obj), 0.0, epsilon = 1e-10);
+    }
+
+    // ===== Mean Euclidean Distance Tests =====
 
     #[test]
     fn test_mean_euclidean_perfect_match() {
@@ -257,13 +382,68 @@ mod tests {
     }
 
     #[test]
-    fn test_mean_euclidean_distance() {
+    fn test_mean_euclidean_perfect_match_floats() {
+        let det = make_detection(&[1.1, 2.2, 3.3, 4.4], 2, 2);
+        let obj = make_object(&[1.1, 2.2, 3.3, 4.4], 2, 2);
+        assert_relative_eq!(mean_euclidean(&det, &obj), 0.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_mean_euclidean_distance_1d_1point() {
+        let det = make_detection(&[1.0, 2.0, 3.0, 4.0], 2, 2);
+        let obj = make_object(&[2.0, 2.0, 3.0, 4.0], 2, 2);
+        // (1+0) / 2 = 0.5
+        assert_relative_eq!(mean_euclidean(&det, &obj), 0.5, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_mean_euclidean_distance_2d_1point() {
+        let det = make_detection(&[1.0, 2.0, 3.0, 4.0], 2, 2);
+        let obj = make_object(&[3.0, 2.0, 3.0, 4.0], 2, 2);
+        // (2+0) / 2 = 1.0
+        assert_relative_eq!(mean_euclidean(&det, &obj), 1.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_mean_euclidean_distance_2d_all_points() {
+        let det = make_detection(&[1.0, 2.0, 3.0, 4.0], 2, 2);
+        let obj = make_object(&[3.0, 2.0, 5.0, 4.0], 2, 2);
+        // (2+2) / 2 = 2.0
+        assert_relative_eq!(mean_euclidean(&det, &obj), 2.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_mean_euclidean_distance_all_dims() {
         let det = make_detection(&[1.0, 2.0, 3.0, 4.0], 2, 2);
         let obj = make_object(&[2.0, 3.0, 4.0, 5.0], 2, 2);
-        // Each point: sqrt(1+1) = sqrt(2)
-        // Mean: sqrt(2)
+        // Each point: sqrt(2), Mean: sqrt(2)
         assert_relative_eq!(mean_euclidean(&det, &obj), 2.0_f64.sqrt(), epsilon = 1e-10);
     }
+
+    #[test]
+    fn test_mean_euclidean_distance_2_all_dims() {
+        let det = make_detection(&[1.0, 2.0, 3.0, 4.0], 2, 2);
+        let obj = make_object(&[3.0, 4.0, 5.0, 6.0], 2, 2);
+        // Each point: sqrt(8), Mean: sqrt(8)
+        assert_relative_eq!(mean_euclidean(&det, &obj), 8.0_f64.sqrt(), epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_mean_euclidean_negative_difference() {
+        let det = make_detection(&[1.0, 2.0, 3.0, 4.0], 2, 2);
+        let obj = make_object(&[-1.0, 2.0, 3.0, 4.0], 2, 2);
+        // (2+0) / 2 = 1.0
+        assert_relative_eq!(mean_euclidean(&det, &obj), 1.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_mean_euclidean_negative_equals() {
+        let det = make_detection(&[-1.0, 2.0, 3.0, 4.0], 2, 2);
+        let obj = make_object(&[-1.0, 2.0, 3.0, 4.0], 2, 2);
+        assert_relative_eq!(mean_euclidean(&det, &obj), 0.0, epsilon = 1e-10);
+    }
+
+    // ===== IoU Distance Tests =====
 
     #[test]
     fn test_iou_perfect_match() {
@@ -271,6 +451,23 @@ mod tests {
         let obj = DMatrix::from_row_slice(1, 4, &[0.0, 0.0, 1.0, 1.0]);
         let result = iou(&cand, &obj);
         assert_relative_eq!(result[(0, 0)], 0.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_iou_perfect_match_floats() {
+        let cand = DMatrix::from_row_slice(1, 4, &[0.0, 0.0, 1.1, 1.1]);
+        let obj = DMatrix::from_row_slice(1, 4, &[0.0, 0.0, 1.1, 1.1]);
+        let result = iou(&cand, &obj);
+        assert_relative_eq!(result[(0, 0)], 0.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_iou_detection_contained_in_object() {
+        let cand = DMatrix::from_row_slice(1, 4, &[0.0, 0.0, 1.0, 1.0]);
+        let obj = DMatrix::from_row_slice(1, 4, &[0.0, 0.0, 2.0, 2.0]);
+        let result = iou(&cand, &obj);
+        // IoU = 1/4 = 0.25, distance = 0.75
+        assert_relative_eq!(result[(0, 0)], 0.75, epsilon = 1e-10);
     }
 
     #[test]
@@ -282,11 +479,175 @@ mod tests {
     }
 
     #[test]
+    fn test_iou_object_contained_in_detection() {
+        let cand = DMatrix::from_row_slice(1, 4, &[0.0, 0.0, 4.0, 4.0]);
+        let obj = DMatrix::from_row_slice(1, 4, &[1.0, 1.0, 2.0, 2.0]);
+        let result = iou(&cand, &obj);
+        // IoU = 1/16 = 0.0625, distance = 0.9375
+        assert_relative_eq!(result[(0, 0)], 0.9375, epsilon = 1e-10);
+    }
+
+    #[test]
     fn test_iou_partial_overlap() {
         let cand = DMatrix::from_row_slice(1, 4, &[0.0, 0.0, 2.0, 2.0]);
         let obj = DMatrix::from_row_slice(1, 4, &[1.0, 1.0, 3.0, 3.0]);
         let result = iou(&cand, &obj);
         // Intersection: 1x1 = 1, Union: 4+4-1 = 7
         assert_relative_eq!(result[(0, 0)], 1.0 - 1.0 / 7.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_iou_multiple_boxes() {
+        let cand = DMatrix::from_row_slice(2, 4, &[
+            0.0, 0.0, 1.0, 1.0,
+            2.0, 2.0, 3.0, 3.0,
+        ]);
+        let obj = DMatrix::from_row_slice(2, 4, &[
+            0.0, 0.0, 1.0, 1.0,
+            4.0, 4.0, 5.0, 5.0,
+        ]);
+        let result = iou(&cand, &obj);
+
+        // cand[0] vs obj[0]: perfect match -> 0
+        assert_relative_eq!(result[(0, 0)], 0.0, epsilon = 1e-10);
+        // cand[0] vs obj[1]: no overlap -> 1
+        assert_relative_eq!(result[(0, 1)], 1.0, epsilon = 1e-10);
+        // cand[1] vs obj[0]: no overlap -> 1
+        assert_relative_eq!(result[(1, 0)], 1.0, epsilon = 1e-10);
+        // cand[1] vs obj[1]: no overlap -> 1
+        assert_relative_eq!(result[(1, 1)], 1.0, epsilon = 1e-10);
+    }
+
+    // ===== Keypoints Voting Distance Tests =====
+
+    #[test]
+    fn test_keypoint_voting_perfect_match() {
+        let vote_d = create_keypoints_voting_distance(8.0_f64.sqrt(), 0.5);
+
+        let det = make_detection_with_scores(&[0.0, 0.0, 1.0, 1.0, 2.0, 2.0], 3, 2, &[0.6, 0.6, 0.6]);
+        let obj = make_object_with_scores(&[0.0, 0.0, 1.0, 1.0, 2.0, 2.0], 3, 2, &[0.6, 0.6, 0.6]);
+
+        let result = vote_d(&det, &obj);
+        // 3 matches out of 4 (total_valid + 1) -> 1 - 3/4 = 0.25
+        assert_relative_eq!(result, 0.25, epsilon = 1e-6);
+    }
+
+    #[test]
+    fn test_keypoint_voting_just_under_threshold() {
+        let vote_d = create_keypoints_voting_distance(8.0_f64.sqrt(), 0.5);
+
+        let det = make_detection_with_scores(&[0.0, 0.0, 1.0, 1.0, 2.0, 2.0], 3, 2, &[0.6, 0.6, 0.6]);
+        let obj = make_object_with_scores(&[0.0, 0.0, 1.0, 1.0, 4.0, 3.9], 3, 2, &[0.6, 0.6, 0.6]);
+
+        let result = vote_d(&det, &obj);
+        // dist for last point = sqrt((4-2)^2 + (3.9-2)^2) = sqrt(7.61) < sqrt(8)
+        // 3 matches -> 1 - 3/4 = 0.25
+        assert_relative_eq!(result, 0.25, epsilon = 1e-6);
+    }
+
+    #[test]
+    fn test_keypoint_voting_just_above_threshold() {
+        let vote_d = create_keypoints_voting_distance(8.0_f64.sqrt(), 0.5);
+
+        let det = make_detection_with_scores(&[0.0, 0.0, 1.0, 1.0, 2.0, 2.0], 3, 2, &[0.6, 0.6, 0.6]);
+        let obj = make_object_with_scores(&[0.0, 0.0, 1.0, 1.0, 4.0, 4.0], 3, 2, &[0.6, 0.6, 0.6]);
+
+        let result = vote_d(&det, &obj);
+        // dist for last point = sqrt(8) >= sqrt(8), no match
+        // 2 matches out of (3 valid + 1) = 4 -> 1 - 2/4 = 0.5
+        assert_relative_eq!(result, 0.5, epsilon = 1e-6);
+    }
+
+    #[test]
+    fn test_keypoint_voting_no_match_scores() {
+        let vote_d = create_keypoints_voting_distance(8.0_f64.sqrt(), 0.5);
+
+        let det = make_detection_with_scores(&[0.0, 0.0, 1.0, 1.0, 2.0, 2.0], 3, 2, &[0.5, 0.5, 0.5]);
+        let obj = make_object_with_scores(&[0.0, 0.0, 1.0, 1.0, 2.0, 2.0], 3, 2, &[0.5, 0.5, 0.5]);
+
+        let result = vote_d(&det, &obj);
+        // All scores <= threshold, no matches
+        assert_relative_eq!(result, 1.0, epsilon = 1e-6);
+    }
+
+    #[test]
+    fn test_keypoint_voting_no_match_distances() {
+        let vote_d = create_keypoints_voting_distance(8.0_f64.sqrt(), 0.5);
+
+        let det = make_detection_with_scores(&[0.0, 0.0, 1.0, 1.0, 2.0, 2.0], 3, 2, &[0.6, 0.6, 0.6]);
+        let obj = make_object_with_scores(&[2.0, 2.0, 3.0, 3.0, 4.0, 4.0], 3, 2, &[0.6, 0.6, 0.6]);
+
+        let result = vote_d(&det, &obj);
+        // All distances >= threshold, no matches
+        assert_relative_eq!(result, 1.0, epsilon = 1e-6);
+    }
+
+    // ===== Normalized Euclidean Distance Tests =====
+
+    #[test]
+    fn test_normalized_euclidean_perfect_match() {
+        let norm_e = create_normalized_mean_euclidean_distance(10.0, 10.0);
+
+        let det = make_detection(&[1.0, 2.0, 3.0, 4.0], 2, 2);
+        let obj = make_object(&[1.0, 2.0, 3.0, 4.0], 2, 2);
+
+        assert_relative_eq!(norm_e(&det, &obj), 0.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_normalized_euclidean_distance_1d_1point() {
+        let norm_e = create_normalized_mean_euclidean_distance(10.0, 10.0);
+
+        let det = make_detection(&[1.0, 2.0, 3.0, 4.0], 2, 2);
+        let obj = make_object(&[2.0, 2.0, 3.0, 4.0], 2, 2);
+
+        // Point 1: sqrt((0.1)^2 + (0)^2) = 0.1
+        // Point 2: sqrt((0)^2 + (0)^2) = 0
+        // Mean: (0.1 + 0) / 2 = 0.05
+        assert_relative_eq!(norm_e(&det, &obj), 0.05, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_normalized_euclidean_distance_2d_1point() {
+        let norm_e = create_normalized_mean_euclidean_distance(10.0, 10.0);
+
+        let det = make_detection(&[1.0, 2.0, 3.0, 4.0], 2, 2);
+        let obj = make_object(&[3.0, 2.0, 3.0, 4.0], 2, 2);
+
+        // (0.2 + 0) / 2 = 0.1
+        assert_relative_eq!(norm_e(&det, &obj), 0.1, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_normalized_euclidean_distance_2d_all_points() {
+        let norm_e = create_normalized_mean_euclidean_distance(10.0, 10.0);
+
+        let det = make_detection(&[1.0, 2.0, 3.0, 4.0], 2, 2);
+        let obj = make_object(&[3.0, 2.0, 5.0, 4.0], 2, 2);
+
+        // (0.2 + 0.2) / 2 = 0.2
+        assert_relative_eq!(norm_e(&det, &obj), 0.2, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_normalized_euclidean_distance_all_dims() {
+        let norm_e = create_normalized_mean_euclidean_distance(10.0, 10.0);
+
+        let det = make_detection(&[1.0, 2.0, 3.0, 4.0], 2, 2);
+        let obj = make_object(&[2.0, 3.0, 4.0, 5.0], 2, 2);
+
+        // Each point: sqrt(0.01+0.01) = sqrt(2)/10
+        // Mean: sqrt(2)/10
+        assert_relative_eq!(norm_e(&det, &obj), 2.0_f64.sqrt() / 10.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_normalized_euclidean_negative_equals() {
+        let norm_e = create_normalized_mean_euclidean_distance(10.0, 10.0);
+
+        let det = make_detection(&[-1.0, 2.0, 3.0, 4.0], 2, 2);
+        let obj = make_object(&[-1.0, 2.0, 3.0, 4.0], 2, 2);
+
+        assert_relative_eq!(norm_e(&det, &obj), 0.0, epsilon = 1e-10);
     }
 }

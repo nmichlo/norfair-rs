@@ -49,7 +49,7 @@ pub mod drawing;
 
 // Re-exports for convenience
 pub use detection::Detection;
-pub use tracked_object::TrackedObject;
+pub use tracked_object::{TrackedObject, TrackedObjectFactory};
 pub use tracker::{Tracker, TrackerConfig};
 pub use filter::{Filter, FilterFactory};
 pub use distances::{Distance, distance_by_name};

@@ -1,7 +1,44 @@
 //! NumPy-like array operations.
+//!
+//! Ported from numpy:
+//! - linspace: numpy.linspace
+//! - validate_points, flatten, reshape: array utilities
 
 use nalgebra::DMatrix;
 use crate::{Error, Result};
+
+/// Generate `n` evenly spaced values between `start` and `end` (inclusive).
+///
+/// This is a port of numpy.linspace which returns evenly spaced numbers over
+/// a specified interval.
+///
+/// # Arguments
+/// * `start` - Starting value of the sequence
+/// * `end` - End value of the sequence
+/// * `n` - Number of samples to generate
+///
+/// # Returns
+/// Vector of `n` evenly spaced float64 values
+pub fn linspace(start: f64, end: f64, n: usize) -> Vec<f64> {
+    if n == 0 {
+        return Vec::new();
+    }
+    if n == 1 {
+        return vec![start];
+    }
+
+    let mut result = Vec::with_capacity(n);
+    let step = (end - start) / (n - 1) as f64;
+
+    for i in 0..n {
+        result.push(start + i as f64 * step);
+    }
+
+    // Ensure endpoint is exact (avoid floating point drift)
+    result[n - 1] = end;
+
+    result
+}
 
 /// Validate and normalize points to 2D shape (n_points, n_dims).
 ///
@@ -56,6 +93,93 @@ pub fn reshape(vec: &nalgebra::DVector<f64>, rows: usize, cols: usize) -> Result
 mod tests {
     use super::*;
 
+    // ===== linspace tests =====
+
+    #[test]
+    fn test_linspace_basic() {
+        let result = linspace(0.0, 1.0, 5);
+        assert_eq!(result.len(), 5);
+        assert!((result[0] - 0.0).abs() < 1e-10);
+        assert!((result[1] - 0.25).abs() < 1e-10);
+        assert!((result[2] - 0.5).abs() < 1e-10);
+        assert!((result[3] - 0.75).abs() < 1e-10);
+        assert!((result[4] - 1.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_linspace_two_points() {
+        let result = linspace(0.0, 10.0, 2);
+        assert_eq!(result.len(), 2);
+        assert!((result[0] - 0.0).abs() < 1e-10);
+        assert!((result[1] - 10.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_linspace_single_point() {
+        let result = linspace(5.0, 10.0, 1);
+        assert_eq!(result.len(), 1);
+        assert!((result[0] - 5.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_linspace_zero() {
+        let result = linspace(0.0, 10.0, 0);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_linspace_negative() {
+        let result = linspace(-5.0, 5.0, 5);
+        assert_eq!(result.len(), 5);
+        assert!((result[0] - (-5.0)).abs() < 1e-10);
+        assert!((result[2] - 0.0).abs() < 1e-10);
+        assert!((result[4] - 5.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_linspace_reverse_range() {
+        let result = linspace(10.0, 0.0, 5);
+        assert_eq!(result.len(), 5);
+        assert!((result[0] - 10.0).abs() < 1e-10);
+        assert!((result[2] - 5.0).abs() < 1e-10);
+        assert!((result[4] - 0.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_linspace_floating_point() {
+        let result = linspace(0.1, 0.9, 5);
+        assert_eq!(result.len(), 5);
+        assert!((result[0] - 0.1).abs() < 1e-10);
+        assert!((result[4] - 0.9).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_linspace_large_n() {
+        let result = linspace(0.0, 100.0, 101);
+        assert_eq!(result.len(), 101);
+        assert!((result[0] - 0.0).abs() < 1e-10);
+        assert!((result[50] - 50.0).abs() < 1e-10);
+        assert!((result[100] - 100.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_linspace_endpoint_exact() {
+        // Ensure endpoint is exactly preserved despite floating point
+        let result = linspace(0.0, 1.0, 1001);
+        assert_eq!(result[1000], 1.0); // Must be exact, not approximately 1.0
+    }
+
+    #[test]
+    fn test_linspace_zero_range() {
+        let result = linspace(5.0, 5.0, 5);
+        assert_eq!(result.len(), 5);
+        for val in &result {
+            assert!((val - 5.0).abs() < 1e-10);
+        }
+    }
+
+    // ===== validate_points tests =====
+
     #[test]
     fn test_validate_points_2d() {
         let points = DMatrix::from_row_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
@@ -73,11 +197,30 @@ mod tests {
     }
 
     #[test]
+    fn test_validate_points_3d() {
+        let points = DMatrix::from_row_slice(3, 3, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]);
+        let result = validate_points(&points).unwrap();
+        assert_eq!(result.nrows(), 3);
+        assert_eq!(result.ncols(), 3);
+    }
+
+    #[test]
+    fn test_validate_points_invalid_single_value() {
+        let points = DMatrix::from_row_slice(1, 1, &[1.0]);
+        let result = validate_points(&points);
+        assert!(result.is_err());
+    }
+
+    // ===== flatten tests =====
+
+    #[test]
     fn test_flatten() {
         let matrix = DMatrix::from_row_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
         let flat = flatten(&matrix);
         assert_eq!(flat.len(), 4);
     }
+
+    // ===== reshape tests =====
 
     #[test]
     fn test_reshape() {
@@ -85,5 +228,12 @@ mod tests {
         let matrix = reshape(&vec, 2, 2).unwrap();
         assert_eq!(matrix.nrows(), 2);
         assert_eq!(matrix.ncols(), 2);
+    }
+
+    #[test]
+    fn test_reshape_invalid_size() {
+        let vec = nalgebra::DVector::from_vec(vec![1.0, 2.0, 3.0]);
+        let result = reshape(&vec, 2, 2);
+        assert!(result.is_err());
     }
 }

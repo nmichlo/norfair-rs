@@ -211,6 +211,62 @@ pub type Recall = f64;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use approx::assert_relative_eq;
+
+    // ===== Basic Accumulator Tests =====
+
+    #[test]
+    fn test_accumulator_new() {
+        let acc = MOTAccumulator::new();
+        let metrics = acc.compute_metrics();
+
+        assert_eq!(metrics.num_matches, 0);
+        assert_eq!(metrics.num_misses, 0);
+        assert_eq!(metrics.num_false_positives, 0);
+        assert_eq!(metrics.num_switches, 0);
+    }
+
+    #[test]
+    fn test_accumulator_empty_frame() {
+        let mut acc = MOTAccumulator::new();
+
+        // Both empty: should produce no events
+        let distances = DMatrix::zeros(0, 0);
+        acc.update(0, &[], &[], &distances);
+
+        let metrics = acc.compute_metrics();
+        assert_eq!(metrics.num_matches, 0);
+        assert_eq!(metrics.num_misses, 0);
+        assert_eq!(metrics.num_false_positives, 0);
+    }
+
+    #[test]
+    fn test_accumulator_only_predictions() {
+        let mut acc = MOTAccumulator::new();
+
+        // No GT, 3 predictions → 3 false positives
+        let distances = DMatrix::zeros(0, 3);
+        acc.update(0, &[], &[1, 2, 3], &distances);
+
+        let metrics = acc.compute_metrics();
+        assert_eq!(metrics.num_false_positives, 3);
+        assert_eq!(metrics.num_matches, 0);
+        assert_eq!(metrics.num_misses, 0);
+    }
+
+    #[test]
+    fn test_accumulator_only_gt() {
+        let mut acc = MOTAccumulator::new();
+
+        // 2 GT, no predictions → 2 misses
+        let distances = DMatrix::zeros(2, 0);
+        acc.update(0, &[1, 2], &[], &distances);
+
+        let metrics = acc.compute_metrics();
+        assert_eq!(metrics.num_misses, 2);
+        assert_eq!(metrics.num_matches, 0);
+        assert_eq!(metrics.num_false_positives, 0);
+    }
 
     #[test]
     fn test_accumulator_perfect_tracking() {
@@ -226,6 +282,24 @@ mod tests {
         assert_eq!(metrics.num_misses, 0);
         assert_eq!(metrics.num_false_positives, 0);
         assert_eq!(metrics.num_switches, 0);
+        assert_relative_eq!(metrics.total_distance, 0.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_accumulator_perfect_match_two_objects() {
+        let mut acc = MOTAccumulator::new();
+
+        // Two objects, perfect match
+        let distances = DMatrix::from_row_slice(2, 2, &[
+            0.0, f64::INFINITY,
+            f64::INFINITY, 0.0,
+        ]);
+        acc.update(0, &[1, 2], &[1, 2], &distances);
+
+        let metrics = acc.compute_metrics();
+        assert_eq!(metrics.num_matches, 2);
+        assert_eq!(metrics.num_misses, 0);
+        assert_eq!(metrics.num_false_positives, 0);
     }
 
     #[test]
@@ -238,5 +312,267 @@ mod tests {
 
         let metrics = acc.compute_metrics();
         assert_eq!(metrics.num_misses, 1);
+    }
+
+    #[test]
+    fn test_accumulator_partial_match() {
+        let mut acc = MOTAccumulator::new();
+
+        // 2 GT, 2 predictions, but only 1 valid match
+        let distances = DMatrix::from_row_slice(2, 2, &[
+            0.1, f64::INFINITY,  // GT0 matches Pred0
+            f64::INFINITY, f64::INFINITY,  // GT1 matches nothing
+        ]);
+        acc.update(0, &[1, 2], &[1, 2], &distances);
+
+        let metrics = acc.compute_metrics();
+        assert_eq!(metrics.num_matches, 1);
+        assert_eq!(metrics.num_misses, 1);
+        assert_eq!(metrics.num_false_positives, 1);
+    }
+
+    // ===== ID Switch Detection Tests =====
+
+    #[test]
+    fn test_accumulator_id_switch() {
+        let mut acc = MOTAccumulator::new();
+
+        // Frame 1: GT1 → Tracker1
+        let distances = DMatrix::from_row_slice(1, 1, &[0.0]);
+        acc.update(0, &[1], &[1], &distances);
+
+        // Check no switch yet
+        let metrics = acc.compute_metrics();
+        assert_eq!(metrics.num_switches, 0);
+
+        // Frame 2: GT1 → Tracker2 (switch!)
+        acc.update(1, &[1], &[2], &distances);
+
+        let metrics = acc.compute_metrics();
+        assert_eq!(metrics.num_switches, 1);
+        assert_eq!(metrics.num_matches, 2); // Both are still matches
+    }
+
+    #[test]
+    fn test_accumulator_no_switch_same_tracker() {
+        let mut acc = MOTAccumulator::new();
+
+        // Frame 1-3: GT1 → Tracker1 consistently
+        let distances = DMatrix::from_row_slice(1, 1, &[0.0]);
+        acc.update(0, &[1], &[1], &distances);
+        acc.update(1, &[1], &[1], &distances);
+        acc.update(2, &[1], &[1], &distances);
+
+        let metrics = acc.compute_metrics();
+        assert_eq!(metrics.num_switches, 0);
+        assert_eq!(metrics.num_matches, 3);
+    }
+
+    #[test]
+    fn test_accumulator_multiple_switches() {
+        let mut acc = MOTAccumulator::new();
+        let distances = DMatrix::from_row_slice(1, 1, &[0.0]);
+
+        // GT1 → Tracker1
+        acc.update(0, &[1], &[1], &distances);
+        // GT1 → Tracker2 (switch 1)
+        acc.update(1, &[1], &[2], &distances);
+        // GT1 → Tracker1 (switch 2)
+        acc.update(2, &[1], &[1], &distances);
+        // GT1 → Tracker3 (switch 3)
+        acc.update(3, &[1], &[3], &distances);
+
+        let metrics = acc.compute_metrics();
+        assert_eq!(metrics.num_switches, 3);
+        assert_eq!(metrics.num_matches, 4);
+    }
+
+    // ===== Multi-Frame Accumulation Tests =====
+
+    #[test]
+    fn test_accumulator_multi_frame() {
+        let mut acc = MOTAccumulator::new();
+
+        // Frame 1: 2 GT, 2 predictions (2 matches)
+        let dist1 = DMatrix::from_row_slice(2, 2, &[
+            0.0, f64::INFINITY,
+            f64::INFINITY, 0.0,
+        ]);
+        acc.update(0, &[1, 2], &[1, 2], &dist1);
+
+        // Frame 2: 2 GT, 1 prediction (1 match, 1 miss)
+        let dist2 = DMatrix::from_row_slice(2, 1, &[0.0, f64::INFINITY]);
+        acc.update(1, &[1, 2], &[1], &dist2);
+
+        // Frame 3: 1 GT, 2 predictions (1 match, 1 FP)
+        let dist3 = DMatrix::from_row_slice(1, 2, &[0.0, f64::INFINITY]);
+        acc.update(2, &[1], &[1, 3], &dist3);
+
+        let metrics = acc.compute_metrics();
+        // 2+1+1=4 matches, 0+1+0=1 miss, 0+0+1=1 FP
+        assert_eq!(metrics.num_matches, 4);
+        assert_eq!(metrics.num_misses, 1);
+        assert_eq!(metrics.num_false_positives, 1);
+    }
+
+    // ===== Metric Computation Tests =====
+
+    #[test]
+    fn test_metrics_recall() {
+        let mut acc = MOTAccumulator::new();
+
+        // 3 matches, 2 misses → recall = 3/5 = 0.6
+        let dist = DMatrix::from_row_slice(1, 1, &[0.0]);
+        acc.update(0, &[1], &[1], &dist);
+        acc.update(1, &[1], &[1], &dist);
+        acc.update(2, &[1], &[1], &dist);
+
+        let empty = DMatrix::zeros(1, 0);
+        acc.update(3, &[1], &[], &empty);
+        acc.update(4, &[1], &[], &empty);
+
+        let metrics = acc.compute_metrics();
+        assert_relative_eq!(metrics.recall, 0.6, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_metrics_precision() {
+        let mut acc = MOTAccumulator::new();
+
+        // 2 matches, 3 false positives → precision = 2/5 = 0.4
+        let dist = DMatrix::from_row_slice(1, 1, &[0.0]);
+        acc.update(0, &[1], &[1], &dist);
+        acc.update(1, &[1], &[1], &dist);
+
+        let empty = DMatrix::zeros(0, 1);
+        acc.update(2, &[], &[2], &empty);
+        acc.update(3, &[], &[3], &empty);
+        acc.update(4, &[], &[4], &empty);
+
+        let metrics = acc.compute_metrics();
+        assert_relative_eq!(metrics.precision, 0.4, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_metrics_mota() {
+        let mut acc = MOTAccumulator::new();
+
+        // MOTA = 1 - (FN + FP + IDSW) / num_gt
+        // 8 matches, 1 miss, 1 FP, 0 switches on 9 GT objects
+        // MOTA = 1 - (1 + 1 + 0) / 9 = 1 - 2/9 ≈ 0.778
+
+        let dist = DMatrix::from_row_slice(1, 1, &[0.1]);
+        for _ in 0..8 {
+            acc.update(0, &[1], &[1], &dist);
+        }
+
+        let empty_hyp = DMatrix::zeros(1, 0);
+        acc.update(8, &[1], &[], &empty_hyp);
+
+        let empty_gt = DMatrix::zeros(0, 1);
+        acc.update(9, &[], &[2], &empty_gt);
+
+        let metrics = acc.compute_metrics();
+        // 8 matches + 1 miss = 9 GT, 8 matches + 1 FP = 9 pred
+        // MOTA = 1 - (1 + 1 + 0) / 9
+        assert_relative_eq!(metrics.mota, 1.0 - 2.0 / 9.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_metrics_motp() {
+        let mut acc = MOTAccumulator::new();
+
+        // 3 matches with distances 0.1, 0.2, 0.3 → MOTP = 0.6/3 = 0.2
+        let dist1 = DMatrix::from_row_slice(1, 1, &[0.1]);
+        let dist2 = DMatrix::from_row_slice(1, 1, &[0.2]);
+        let dist3 = DMatrix::from_row_slice(1, 1, &[0.3]);
+
+        acc.update(0, &[1], &[1], &dist1);
+        acc.update(1, &[1], &[1], &dist2);
+        acc.update(2, &[1], &[1], &dist3);
+
+        let metrics = acc.compute_metrics();
+        assert_relative_eq!(metrics.motp, 0.2, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_metrics_perfect_tracking() {
+        let mut acc = MOTAccumulator::new();
+
+        // Perfect tracking: all matches, no misses/FPs/switches
+        let dist = DMatrix::from_row_slice(2, 2, &[
+            0.0, f64::INFINITY,
+            f64::INFINITY, 0.0,
+        ]);
+
+        for _ in 0..10 {
+            acc.update(0, &[1, 2], &[1, 2], &dist);
+        }
+
+        let metrics = acc.compute_metrics();
+        assert_eq!(metrics.num_matches, 20);
+        assert_eq!(metrics.num_misses, 0);
+        assert_eq!(metrics.num_false_positives, 0);
+        assert_eq!(metrics.num_switches, 0);
+        assert_relative_eq!(metrics.mota, 1.0, epsilon = 1e-10);
+        assert_relative_eq!(metrics.recall, 1.0, epsilon = 1e-10);
+        assert_relative_eq!(metrics.precision, 1.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_metrics_all_misses() {
+        let mut acc = MOTAccumulator::new();
+
+        // All misses: no predictions
+        let empty = DMatrix::zeros(2, 0);
+        for _ in 0..5 {
+            acc.update(0, &[1, 2], &[], &empty);
+        }
+
+        let metrics = acc.compute_metrics();
+        assert_eq!(metrics.num_matches, 0);
+        assert_eq!(metrics.num_misses, 10);
+        assert_eq!(metrics.num_false_positives, 0);
+        // MOTA = 1 - (FN + FP + IDSW) / num_gt = 1 - 10/10 = 0
+        assert_relative_eq!(metrics.mota, 0.0, epsilon = 1e-10);
+        assert_relative_eq!(metrics.recall, 0.0, epsilon = 1e-10);
+    }
+
+    // ===== Edge Cases =====
+
+    #[test]
+    fn test_accumulator_greedy_matching() {
+        let mut acc = MOTAccumulator::new();
+
+        // Test greedy matching: GT0 should match Pred1 (distance 0.1)
+        // even though GT1 also wants Pred1 (distance 0.2)
+        let distances = DMatrix::from_row_slice(2, 2, &[
+            0.5, 0.1,  // GT0: prefers Pred1
+            0.2, 0.2,  // GT1: both same
+        ]);
+        acc.update(0, &[1, 2], &[1, 2], &distances);
+
+        let metrics = acc.compute_metrics();
+        // Both should match, greedy picks smallest first
+        assert_eq!(metrics.num_matches, 2);
+        assert_eq!(metrics.num_misses, 0);
+        assert_eq!(metrics.num_false_positives, 0);
+    }
+
+    #[test]
+    fn test_accumulator_with_inf_distances() {
+        let mut acc = MOTAccumulator::new();
+
+        // All infinite distances → no matches
+        let distances = DMatrix::from_row_slice(2, 2, &[
+            f64::INFINITY, f64::INFINITY,
+            f64::INFINITY, f64::INFINITY,
+        ]);
+        acc.update(0, &[1, 2], &[1, 2], &distances);
+
+        let metrics = acc.compute_metrics();
+        assert_eq!(metrics.num_matches, 0);
+        assert_eq!(metrics.num_misses, 2);
+        assert_eq!(metrics.num_false_positives, 2);
     }
 }

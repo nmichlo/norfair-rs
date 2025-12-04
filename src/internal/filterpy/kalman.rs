@@ -42,13 +42,19 @@ impl KalmanFilter {
     /// * `dim_x` - State dimension
     /// * `dim_z` - Measurement dimension
     pub fn new(dim_x: usize, dim_z: usize) -> Self {
+        // Initialize H matrix with identity in measurement dimensions
+        let mut h = DMatrix::zeros(dim_z, dim_x);
+        for i in 0..dim_z.min(dim_x) {
+            h[(i, i)] = 1.0;
+        }
+
         Self {
             dim_x,
             dim_z,
             x: DVector::zeros(dim_x),
             p: DMatrix::identity(dim_x, dim_x),
             f: DMatrix::identity(dim_x, dim_x),
-            h: DMatrix::zeros(dim_z, dim_x),
+            h,
             r: DMatrix::identity(dim_z, dim_z),
             q: DMatrix::identity(dim_x, dim_x),
             b: None,
@@ -126,58 +132,230 @@ mod tests {
     use super::*;
     use approx::assert_relative_eq;
 
+    // ===== Initialization tests =====
+
     #[test]
     fn test_kalman_filter_create() {
         let kf = KalmanFilter::new(4, 2);
+
+        // Verify dimensions
         assert_eq!(kf.dim_x, 4);
         assert_eq!(kf.dim_z, 2);
         assert_eq!(kf.x.len(), 4);
         assert_eq!(kf.p.nrows(), 4);
         assert_eq!(kf.p.ncols(), 4);
+
+        // Verify F is identity
+        for i in 0..4 {
+            for j in 0..4 {
+                let expected = if i == j { 1.0 } else { 0.0 };
+                assert_relative_eq!(kf.f[(i, j)], expected, epsilon = 1e-10);
+            }
+        }
+
+        // Verify H matrix is identity for measurement dimensions
+        for i in 0..2 {
+            for j in 0..4 {
+                let expected = if i == j { 1.0 } else { 0.0 };
+                assert_relative_eq!(kf.h[(i, j)], expected, epsilon = 1e-10);
+            }
+        }
+
+        // Verify initial state is zero
+        for i in 0..4 {
+            assert_relative_eq!(kf.x[i], 0.0, epsilon = 1e-10);
+        }
     }
+
+    // ===== Predict tests =====
 
     #[test]
     fn test_kalman_filter_predict() {
-        let mut kf = KalmanFilter::new(4, 2);
+        let mut kf = KalmanFilter::new(2, 1);
 
-        // Set up simple constant velocity model
-        // State: [x, y, vx, vy]
-        kf.f = DMatrix::from_row_slice(4, 4, &[
-            1.0, 0.0, 1.0, 0.0,
-            0.0, 1.0, 0.0, 1.0,
-            0.0, 0.0, 1.0, 0.0,
-            0.0, 0.0, 0.0, 1.0,
+        // Set initial state [position=1, velocity=2]
+        kf.x = DVector::from_vec(vec![1.0, 2.0]);
+
+        // Set F matrix for constant velocity model: [1 dt; 0 1]
+        let dt = 1.0;
+        kf.f = DMatrix::from_row_slice(2, 2, &[
+            1.0, dt,
+            0.0, 1.0,
         ]);
 
-        kf.x = DVector::from_vec(vec![1.0, 1.0, 0.5, 0.5]);
+        // Set Q (process noise)
+        kf.q = DMatrix::from_row_slice(2, 2, &[
+            0.1, 0.0,
+            0.0, 0.1,
+        ]);
 
+        // Initial covariance
+        kf.p = DMatrix::from_row_slice(2, 2, &[
+            1.0, 0.0,
+            0.0, 1.0,
+        ]);
+
+        // Predict
         kf.predict(None);
 
-        // Position should have moved by velocity
-        assert_relative_eq!(kf.x[0], 1.5, epsilon = 1e-10);
-        assert_relative_eq!(kf.x[1], 1.5, epsilon = 1e-10);
-        assert_relative_eq!(kf.x[2], 0.5, epsilon = 1e-10);
-        assert_relative_eq!(kf.x[3], 0.5, epsilon = 1e-10);
+        // After prediction: x = F @ x = [1+2*1, 2] = [3, 2]
+        assert_relative_eq!(kf.x[0], 3.0, epsilon = 1e-10);
+        assert_relative_eq!(kf.x[1], 2.0, epsilon = 1e-10);
+
+        // Covariance should increase: P = F @ P @ F' + Q
+        // Expected: [2.1, 1; 1, 1.1]
+        assert_relative_eq!(kf.p[(0, 0)], 2.1, epsilon = 1e-10);
+        assert_relative_eq!(kf.p[(0, 1)], 1.0, epsilon = 1e-10);
+        assert_relative_eq!(kf.p[(1, 0)], 1.0, epsilon = 1e-10);
+        assert_relative_eq!(kf.p[(1, 1)], 1.1, epsilon = 1e-10);
     }
+
+    // ===== Update tests =====
 
     #[test]
     fn test_kalman_filter_update() {
-        let mut kf = KalmanFilter::new(4, 2);
+        let mut kf = KalmanFilter::new(2, 1);
 
-        // Measurement matrix: only observe position
-        kf.h = DMatrix::from_row_slice(2, 4, &[
-            1.0, 0.0, 0.0, 0.0,
-            0.0, 1.0, 0.0, 0.0,
+        // Set initial state
+        kf.x = DVector::from_vec(vec![0.0, 0.0]);
+
+        // Set measurement matrix H = [1, 0] (measure position only)
+        kf.h = DMatrix::from_row_slice(1, 2, &[1.0, 0.0]);
+
+        // Set R (measurement noise)
+        kf.r = DMatrix::from_row_slice(1, 1, &[1.0]);
+
+        // Set P (large initial uncertainty)
+        kf.p = DMatrix::from_row_slice(2, 2, &[
+            10.0, 0.0,
+            0.0, 10.0,
         ]);
 
-        kf.x = DVector::from_vec(vec![0.0, 0.0, 0.0, 0.0]);
+        // Measurement: position = 5.0
+        let z = DVector::from_vec(vec![5.0]);
 
-        // Update with measurement at (1, 1)
-        let z = DVector::from_vec(vec![1.0, 1.0]);
+        // Update
         kf.update(&z, None, None);
 
-        // State should move towards measurement
-        assert!(kf.x[0] > 0.0);
-        assert!(kf.x[1] > 0.0);
+        // With large P and small R, estimate should move significantly toward measurement
+        // Kalman gain K ≈ [10/(10+1), 0]' ≈ [0.909, 0]'
+        // x = x + K @ (z - H @ x) = [0, 0] + [0.909, 0]' @ 5.0 ≈ [4.545, 0]
+        assert_relative_eq!(kf.x[0], 4.545454545, epsilon = 1e-6);
+        assert_relative_eq!(kf.x[1], 0.0, epsilon = 1e-10);
+    }
+
+    // ===== Predict-Update cycle tests =====
+
+    #[test]
+    fn test_kalman_filter_predict_update_cycle() {
+        let mut kf = KalmanFilter::new(2, 1);
+
+        // Simple 1D position+velocity tracking
+        kf.x = DVector::from_vec(vec![0.0, 1.0]); // start at 0, moving at 1 unit/step
+
+        // F matrix for dt=1: x_new = x + v, v_new = v
+        kf.f = DMatrix::from_row_slice(2, 2, &[
+            1.0, 1.0,
+            0.0, 1.0,
+        ]);
+
+        // H matrix: measure position only
+        kf.h = DMatrix::from_row_slice(1, 2, &[1.0, 0.0]);
+
+        // Low noise
+        kf.q = DMatrix::from_row_slice(2, 2, &[
+            0.01, 0.0,
+            0.0, 0.01,
+        ]);
+        kf.r = DMatrix::from_row_slice(1, 1, &[0.1]);
+        kf.p = DMatrix::from_row_slice(2, 2, &[
+            1.0, 0.0,
+            0.0, 1.0,
+        ]);
+
+        // Simulate movement: object moves from 0 to 5 in 5 steps
+        let measurements = [1.0, 2.0, 3.0, 4.0, 5.0];
+
+        for (i, &z_val) in measurements.iter().enumerate() {
+            // Predict where object will be
+            kf.predict(None);
+
+            // Measure actual position
+            let z = DVector::from_vec(vec![z_val]);
+            kf.update(&z, None, None);
+
+            // After a few iterations, state should track the linear motion
+            if i >= 2 {
+                // Position should be close to measurement
+                let diff = (kf.x[0] - z_val).abs();
+                assert!(diff < 0.5, "Step {}: position {} too far from measurement {}", i+1, kf.x[0], z_val);
+
+                // Velocity should be close to 1.0
+                let vel_diff = (kf.x[1] - 1.0).abs();
+                assert!(vel_diff < 0.5, "Step {}: velocity {} should be close to 1.0", i+1, kf.x[1]);
+            }
+        }
+    }
+
+    // ===== Multi-dimensional tests =====
+
+    #[test]
+    fn test_kalman_filter_multi_dimensional() {
+        // 3D position tracking: [x, y, z, vx, vy, vz]
+        let dim_x = 6;
+        let dim_z = 3;
+        let mut kf = KalmanFilter::new(dim_x, dim_z);
+
+        // Initial state
+        kf.x = DVector::from_vec(vec![
+            1.0, 2.0, 3.0, // positions
+            0.5, 0.5, 0.5, // velocities
+        ]);
+
+        // Constant velocity model
+        let dt = 1.0;
+        kf.f = DMatrix::from_row_slice(dim_x, dim_x, &[
+            1.0, 0.0, 0.0, dt,  0.0, 0.0,
+            0.0, 1.0, 0.0, 0.0, dt,  0.0,
+            0.0, 0.0, 1.0, 0.0, 0.0, dt,
+            0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+        ]);
+
+        // Predict
+        kf.predict(None);
+
+        // After prediction with dt=1:
+        // x_new = x + vx = 1.0 + 0.5 = 1.5
+        // y_new = y + vy = 2.0 + 0.5 = 2.5
+        // z_new = z + vz = 3.0 + 0.5 = 3.5
+        // velocities unchanged
+        assert_relative_eq!(kf.x[0], 1.5, epsilon = 1e-10);
+        assert_relative_eq!(kf.x[1], 2.5, epsilon = 1e-10);
+        assert_relative_eq!(kf.x[2], 3.5, epsilon = 1e-10);
+        assert_relative_eq!(kf.x[3], 0.5, epsilon = 1e-10);
+        assert_relative_eq!(kf.x[4], 0.5, epsilon = 1e-10);
+        assert_relative_eq!(kf.x[5], 0.5, epsilon = 1e-10);
+    }
+
+    // ===== Getters/Setters tests =====
+
+    #[test]
+    fn test_kalman_filter_getters() {
+        let mut kf = KalmanFilter::new(4, 2);
+
+        // Set and get state
+        let new_x = DVector::from_vec(vec![1.0, 2.0, 3.0, 4.0]);
+        kf.x = new_x.clone();
+        assert_eq!(kf.get_state(), &new_x);
+
+        // Set and get covariance
+        let mut new_p = DMatrix::zeros(4, 4);
+        for i in 0..4 {
+            new_p[(i, i)] = (i + 1) as f64;
+        }
+        kf.p = new_p.clone();
+        assert_eq!(kf.get_covariance(), &new_p);
     }
 }

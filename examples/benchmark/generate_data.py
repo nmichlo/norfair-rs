@@ -9,9 +9,11 @@ Uses a simple LCG (Linear Congruential Generator) PRNG for reproducibility
 across Python, Go, and Rust implementations.
 """
 
+import argparse
 import json
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import List, Tuple
 
 # Simple LCG PRNG (same parameters for all languages)
@@ -132,6 +134,12 @@ def generate_scenario(
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Generate benchmark test data")
+    parser.add_argument("--force", action="store_true", help="Regenerate existing data files")
+    args = parser.parse_args()
+
+    force = args.force
+
     # Generate test scenarios of increasing size
     scenarios = [
         # (name, num_objects, num_frames)
@@ -145,7 +153,13 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
 
     for name, num_objects, num_frames in scenarios:
-        print(f"Generating {name} scenario ({num_objects} objects, {num_frames} frames)...")
+        output_path = os.path.join(output_dir, f"{name}.json")
+
+        if force or not Path(output_path).exists():
+            print(f"Generating {name} scenario ({num_objects} objects, {num_frames} frames)...")
+        else:
+            print(f"Skipping {name} scenario ({num_objects} objects, {num_frames} frames)... Already exists!")
+            continue
 
         scenario = generate_scenario(
             seed=42,  # Same seed for reproducibility
@@ -153,7 +167,6 @@ def main():
             num_frames=num_frames,
         )
 
-        output_path = os.path.join(output_dir, f"{name}.json")
         with open(output_path, "w") as f:
             json.dump(scenario, f)
 

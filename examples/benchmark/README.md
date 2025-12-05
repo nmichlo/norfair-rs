@@ -18,25 +18,25 @@ bash run_benchmarks.sh
 
 Benchmarks run on Apple M3 Pro. Results show significant variance between runs.
 
-### Latest Results (v0.1.0 + optimizations)
+### Latest Results (v0.1.0 + optimizations + Python bindings)
 
-| Scenario | Objects | Frames | Detections | Python FPS | Go FPS | Rust FPS | Rust vs Go |
-|----------|---------|--------|------------|------------|--------|----------|------------|
-| small    | 5       | 100    | 446        | ~4,800     | ~295k  | ~370k    | 1.2x       |
-| medium   | 20      | 500    | 9,015      | ~540       | ~32k   | ~82k     | 2.6x       |
-| large    | 50      | 1000   | 44,996     | ~103       | ~3.8k  | ~36k     | 9.5x       |
-| stress   | 100     | 2000   | 179,789    | skipped    | ~550   | ~18k     | 33x        |
+| Scenario | Objects | Frames | Detections | norfair | norfair-go | norfair-rs (python) | norfair-rs (rust) |
+|----------|---------|--------|------------|---------|------------|---------------------|-------------------|
+| small    | 5       | 100    | 446        | ~4,700  | ~243k      | ~107k               | ~296k             |
+| medium   | 20      | 500    | 9,015      | ~540    | ~31k       | ~27k                | ~89k              |
+| large    | 50      | 1000   | 44,996     | ~101    | ~3.8k      | ~11k                | ~41k              |
+| stress   | 100     | 2000   | 179,789    | skipped | ~547       | ~5.2k               | ~18.5k            |
 
 ### Tracked Objects (Correctness Check)
 
 All implementations produce matching tracked object counts:
 
-| Scenario | Python  | Go      | Rust    |
-|----------|---------|---------|---------|
-| small    | 480     | 480     | 480     |
-| medium   | 9,935   | 9,935   | 9,935   |
-| large    | 49,788  | 49,788  | 49,788  |
-| stress   | 199,602 | 199,602 | 199,602 |
+| Scenario | norfair | norfair-go | norfair-rs (python) | norfair-rs (rust) |
+|----------|---------|------------|---------------------|-------------------|
+| small    | 480     | 480        | 480                 | 480               |
+| medium   | 9,935   | 9,935      | 9,935               | 9,935             |
+| large    | 49,788  | 49,788     | 49,788              | 49,788            |
+| stress   | 199,602 | 199,602    | 199,602             | 199,602           |
 
 ---
 

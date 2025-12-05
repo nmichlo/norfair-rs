@@ -12,6 +12,7 @@ Example:
     python benchmark_python.py medium
 """
 
+import argparse
 import json
 import os
 import sys
@@ -19,13 +20,6 @@ import time
 from typing import List
 
 import numpy as np
-
-# Import norfair
-try:
-    from norfair import Detection, Tracker
-except ImportError:
-    print("Error: norfair not installed. Run: pip install norfair")
-    sys.exit(1)
 
 
 def load_scenario(name: str) -> dict:
@@ -42,8 +36,26 @@ def load_scenario(name: str) -> dict:
         return json.load(f)
 
 
-def run_benchmark(scenario: dict) -> dict:
+def run_benchmark(
+    scenario: dict,
+    use_norfair_rs: bool,
+) -> dict:
     """Run the tracking benchmark and return timing results."""
+
+    if not use_norfair_rs:
+        # original library
+        try:
+            from norfair import Detection, Tracker
+        except ImportError:
+            print("Error: norfair not installed. Run: uv pip install norfair")
+            sys.exit(1)
+    else:
+        # drop in replacement!
+        try:
+            from norfair_rs import Detection, Tracker
+        except ImportError:
+            print("Error: norfair_rs not installed. Run: uv run maturin develop --release")
+            sys.exit(1)
 
     # Create tracker with standard settings
     tracker = Tracker(
@@ -93,7 +105,7 @@ def run_benchmark(scenario: dict) -> dict:
     total_detections = sum(len(f["detections"]) for f in scenario["frames"])
 
     return {
-        "language": "python",
+        "language": "python_rs" if use_norfair_rs else "python",
         "scenario": scenario.get("name", "unknown"),
         "num_frames": num_frames,
         "total_detections": total_detections,
@@ -105,7 +117,13 @@ def run_benchmark(scenario: dict) -> dict:
 
 
 def main():
-    scenario_name = sys.argv[1] if len(sys.argv) > 1 else "medium"
+    parser = argparse.ArgumentParser(description="Benchmark norfair tracking")
+    parser.add_argument("scenario", nargs="?", default="medium", help="Scenario name (default: medium)")
+    parser.add_argument("--norfair-rs", action="store_true", help="Use norfair_rs instead of norfair")
+    args = parser.parse_args()
+
+    use_norfair_rs = args.norfair_rs
+    scenario_name = args.scenario
 
     # print(f"Loading scenario: {scenario_name}")
     scenario = load_scenario(scenario_name)
@@ -115,7 +133,7 @@ def main():
     # print(f"  Objects: {scenario['num_objects']}")
     # print(f"  Frames: {scenario['num_frames']}")
 
-    results = run_benchmark(scenario)
+    results = run_benchmark(scenario, use_norfair_rs=use_norfair_rs)
 
     # print(f"\nResults:")
     # print(f"  Elapsed: {results['elapsed_seconds']:.3f}s")

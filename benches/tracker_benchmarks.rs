@@ -8,7 +8,9 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use nalgebra::DMatrix;
 
 use norfair_rs::distances::distance_function_by_name;
-use norfair_rs::filter::{FilterFactoryEnum, FilterPyKalmanFilterFactory, NoFilterFactory, OptimizedKalmanFilterFactory};
+use norfair_rs::filter::{
+    FilterFactoryEnum, FilterPyKalmanFilterFactory, NoFilterFactory, OptimizedKalmanFilterFactory,
+};
 use norfair_rs::{Detection, Tracker, TrackerConfig};
 
 /// Create test detections for benchmarking.
@@ -30,7 +32,8 @@ fn benchmark_tracker_update_10_objects(c: &mut Criterion) {
     let mut config = TrackerConfig::new(distance_function_by_name("euclidean"), 50.0);
     config.hit_counter_max = 30;
     config.initialization_delay = 3;
-    config.filter_factory = FilterFactoryEnum::Optimized(OptimizedKalmanFilterFactory::new(4.0, 0.1, 10.0, 0.0, 1.0));
+    config.filter_factory =
+        FilterFactoryEnum::Optimized(OptimizedKalmanFilterFactory::new(4.0, 0.1, 10.0, 0.0, 1.0));
 
     let mut tracker = Tracker::new(config).expect("valid tracker");
     let detections = create_test_detections(10);
@@ -47,7 +50,8 @@ fn benchmark_tracker_update_50_objects(c: &mut Criterion) {
     let mut config = TrackerConfig::new(distance_function_by_name("euclidean"), 50.0);
     config.hit_counter_max = 30;
     config.initialization_delay = 3;
-    config.filter_factory = FilterFactoryEnum::Optimized(OptimizedKalmanFilterFactory::new(4.0, 0.1, 10.0, 0.0, 1.0));
+    config.filter_factory =
+        FilterFactoryEnum::Optimized(OptimizedKalmanFilterFactory::new(4.0, 0.1, 10.0, 0.0, 1.0));
 
     let mut tracker = Tracker::new(config).expect("valid tracker");
     let detections = create_test_detections(50);
@@ -64,7 +68,8 @@ fn benchmark_tracker_update_100_objects(c: &mut Criterion) {
     let mut config = TrackerConfig::new(distance_function_by_name("euclidean"), 50.0);
     config.hit_counter_max = 30;
     config.initialization_delay = 3;
-    config.filter_factory = FilterFactoryEnum::Optimized(OptimizedKalmanFilterFactory::new(4.0, 0.1, 10.0, 0.0, 1.0));
+    config.filter_factory =
+        FilterFactoryEnum::Optimized(OptimizedKalmanFilterFactory::new(4.0, 0.1, 10.0, 0.0, 1.0));
 
     let mut tracker = Tracker::new(config).expect("valid tracker");
     let detections = create_test_detections(100);
@@ -81,7 +86,8 @@ fn benchmark_tracker_update_100_objects_filterpy_kalman(c: &mut Criterion) {
     let mut config = TrackerConfig::new(distance_function_by_name("euclidean"), 50.0);
     config.hit_counter_max = 30;
     config.initialization_delay = 3;
-    config.filter_factory = FilterFactoryEnum::FilterPy(FilterPyKalmanFilterFactory::new(4.0, 0.1, 10.0));
+    config.filter_factory =
+        FilterFactoryEnum::FilterPy(FilterPyKalmanFilterFactory::new(4.0, 0.1, 10.0));
 
     let mut tracker = Tracker::new(config).expect("valid tracker");
     let detections = create_test_detections(100);
@@ -115,7 +121,8 @@ fn benchmark_tracker_update_100_objects_iou(c: &mut Criterion) {
     let mut config = TrackerConfig::new(distance_function_by_name("iou"), 0.5);
     config.hit_counter_max = 30;
     config.initialization_delay = 3;
-    config.filter_factory = FilterFactoryEnum::Optimized(OptimizedKalmanFilterFactory::new(4.0, 0.1, 10.0, 0.0, 1.0));
+    config.filter_factory =
+        FilterFactoryEnum::Optimized(OptimizedKalmanFilterFactory::new(4.0, 0.1, 10.0, 0.0, 1.0));
 
     let mut tracker = Tracker::new(config).expect("valid tracker");
     let detections = create_test_detections(100);

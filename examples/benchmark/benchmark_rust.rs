@@ -98,8 +98,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // println!("  Frames: {}", scenario.num_frames);
 
     // Import norfair components
-    use norfair_rs::{Detection, Tracker, TrackerConfig};
     use norfair_rs::distances::distance_function_by_name;
+    use norfair_rs::{Detection, Tracker, TrackerConfig};
 
     // Create tracker with standard settings
     let mut config = TrackerConfig::new(distance_function_by_name("iou"), 0.5);
@@ -131,10 +131,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .iter()
             .filter_map(|det| {
                 // Create 2x2 matrix for bounding box (top-left, bottom-right)
-                let points = DMatrix::from_row_slice(2, 2, &[
-                    det.bbox[0], det.bbox[1],  // top-left
-                    det.bbox[2], det.bbox[3],  // bottom-right
-                ]);
+                let points = DMatrix::from_row_slice(
+                    2,
+                    2,
+                    &[
+                        det.bbox[0],
+                        det.bbox[1], // top-left
+                        det.bbox[2],
+                        det.bbox[3], // bottom-right
+                    ],
+                );
                 Detection::new(points).ok()
             })
             .collect();

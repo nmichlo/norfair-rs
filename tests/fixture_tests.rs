@@ -98,8 +98,10 @@ fn load_fixture(scenario: &str) -> Fixture {
 }
 
 fn create_tracker(config: &TrackerConfigJson) -> Tracker {
-    let mut tracker_config =
-        TrackerConfig::new(distance_function_by_name(&config.distance_function), config.distance_threshold);
+    let mut tracker_config = TrackerConfig::new(
+        distance_function_by_name(&config.distance_function),
+        config.distance_threshold,
+    );
     tracker_config.hit_counter_max = config.hit_counter_max;
     tracker_config.initialization_delay = config.initialization_delay;
 
@@ -263,7 +265,8 @@ fn run_fixture_test(scenario: &str) {
 
         // Compare all_objects (all internal objects including initializing)
         // Sort by initializing_id to ensure consistent ordering for comparison
-        let mut all_refs: Vec<&norfair_rs::TrackedObject> = tracker.tracked_objects.iter().collect();
+        let mut all_refs: Vec<&norfair_rs::TrackedObject> =
+            tracker.tracked_objects.iter().collect();
         all_refs.sort_by_key(|obj| obj.initializing_id.unwrap_or(i32::MAX));
         if let Err(msg) = compare_tracked_objects(
             step_idx,

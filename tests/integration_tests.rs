@@ -3,10 +3,13 @@
 //! These tests verify complete tracking workflows across multiple modules.
 
 use norfair_rs::{
-    Detection, Tracker, TrackerConfig,
-    filter::{FilterFactoryEnum, FilterPyKalmanFilterFactory, NoFilterFactory, OptimizedKalmanFilterFactory},
-    distances::distance_function_by_name,
     camera_motion::TranslationTransformation,
+    distances::distance_function_by_name,
+    filter::{
+        FilterFactoryEnum, FilterPyKalmanFilterFactory, NoFilterFactory,
+        OptimizedKalmanFilterFactory,
+    },
+    Detection, Tracker, TrackerConfig,
 };
 
 // =============================================================================
@@ -51,11 +54,7 @@ fn test_integration_complete_tracking_pipeline() {
 
             // Verify object IDs are maintained across frames
             for obj in &tracked_objects {
-                assert!(
-                    obj.id.is_some(),
-                    "Frame {}: object missing ID",
-                    frame
-                );
+                assert!(obj.id.is_some(), "Frame {}: object missing ID", frame);
             }
 
             // Verify estimates are reasonable (within 100 pixels of detections)
@@ -91,16 +90,15 @@ fn test_integration_multiple_filter_types() {
     let filter_configs: Vec<(&str, FilterFactoryEnum)> = vec![
         (
             "OptimizedKalman",
-            FilterFactoryEnum::Optimized(OptimizedKalmanFilterFactory::new(4.0, 0.1, 10.0, 0.0, 1.0)),
+            FilterFactoryEnum::Optimized(OptimizedKalmanFilterFactory::new(
+                4.0, 0.1, 10.0, 0.0, 1.0,
+            )),
         ),
         (
             "FilterPyKalman",
             FilterFactoryEnum::FilterPy(FilterPyKalmanFilterFactory::new(4.0, 0.1, 10.0)),
         ),
-        (
-            "NoFilter",
-            FilterFactoryEnum::None(NoFilterFactory::new()),
-        ),
+        ("NoFilter", FilterFactoryEnum::None(NoFilterFactory::new())),
     ];
 
     for (name, factory) in filter_configs {
@@ -112,7 +110,8 @@ fn test_integration_multiple_filter_types() {
         config.filter_factory = factory;
         config.past_detections_length = 4;
 
-        let mut tracker = Tracker::new(config).expect(&format!("Failed to create tracker with {}", name));
+        let mut tracker =
+            Tracker::new(config).expect(&format!("Failed to create tracker with {}", name));
 
         // Track a moving object across 10 frames
         for frame in 0..10 {
@@ -158,7 +157,7 @@ fn test_integration_multiple_distance_functions() {
     {
         let mut config = TrackerConfig::new(distance_function_by_name("iou"), 0.8);
         config.hit_counter_max = 10;
-        config.initialization_delay = 2;  // Need 2 hits to initialize
+        config.initialization_delay = 2; // Need 2 hits to initialize
         config.pointwise_hit_counter_max = 4;
         config.detection_threshold = 0.0;
         config.past_detections_length = 4;
@@ -184,7 +183,11 @@ fn test_integration_multiple_distance_functions() {
             }
         }
 
-        assert_eq!(tracker.total_object_count(), 1, "IoU: expected 1 total object");
+        assert_eq!(
+            tracker.total_object_count(),
+            1,
+            "IoU: expected 1 total object"
+        );
     }
 
     // Test Euclidean with points
@@ -215,7 +218,11 @@ fn test_integration_multiple_distance_functions() {
             }
         }
 
-        assert_eq!(tracker.total_object_count(), 1, "Euclidean: expected 1 total object");
+        assert_eq!(
+            tracker.total_object_count(),
+            1,
+            "Euclidean: expected 1 total object"
+        );
     }
 
     // Test mean_euclidean with multi-point detections
@@ -381,8 +388,10 @@ fn test_integration_camera_motion_compensation() {
             let abs_x = abs_est[(0, 0)];
             let abs_y = abs_est[(0, 1)];
 
-            println!("Frame {}: relative ({:.1}, {:.1}), absolute ({:.1}, {:.1})",
-                frame, est_x, est_y, abs_x, abs_y);
+            println!(
+                "Frame {}: relative ({:.1}, {:.1}), absolute ({:.1}, {:.1})",
+                frame, est_x, est_y, abs_x, abs_y
+            );
 
             // Just verify coordinates are reasonable
             assert!(
@@ -394,7 +403,11 @@ fn test_integration_camera_motion_compensation() {
     }
 
     // Verify object was tracked successfully
-    assert_eq!(tracker.total_object_count(), 1, "Should have tracked 1 object");
+    assert_eq!(
+        tracker.total_object_count(),
+        1,
+        "Should have tracked 1 object"
+    );
 }
 
 // =============================================================================
@@ -411,7 +424,7 @@ fn test_integration_object_lifecycle() {
 
     let mut config = TrackerConfig::from_distance_name("euclidean", 50.0);
     config.hit_counter_max = 5;
-    config.initialization_delay = 3;  // Need 3 hits to initialize
+    config.initialization_delay = 3; // Need 3 hits to initialize
     config.pointwise_hit_counter_max = 4;
     config.detection_threshold = 0.0;
     config.past_detections_length = 4;
@@ -431,12 +444,26 @@ fn test_integration_object_lifecycle() {
         match frame {
             0..=2 => {
                 // Should be initializing (no active objects visible)
-                assert_eq!(tracked_objects.len(), 0, "Frame {}: should still be initializing", frame);
+                assert_eq!(
+                    tracked_objects.len(),
+                    0,
+                    "Frame {}: should still be initializing",
+                    frame
+                );
             }
             _ => {
                 // Should be initialized
-                assert_eq!(tracked_objects.len(), 1, "Frame {}: should have 1 active object", frame);
-                assert!(tracked_objects[0].id.is_some(), "Frame {}: should have ID", frame);
+                assert_eq!(
+                    tracked_objects.len(),
+                    1,
+                    "Frame {}: should have 1 active object",
+                    frame
+                );
+                assert!(
+                    tracked_objects[0].id.is_some(),
+                    "Frame {}: should have ID",
+                    frame
+                );
             }
         }
     }
@@ -450,7 +477,8 @@ fn test_integration_object_lifecycle() {
 
         // Object should gradually disappear as hit_counter decrements
         // After ~hit_counter_max frames, it dies
-        if frame >= 5 + 6 {  // Allow some buffer for hit counter decay
+        if frame >= 5 + 6 {
+            // Allow some buffer for hit counter decay
             assert_eq!(
                 tracked_objects.len(),
                 0,
@@ -477,5 +505,9 @@ fn test_integration_object_lifecycle() {
     }
 
     // Should now have 2 total objects (first one died, second one created)
-    assert_eq!(tracker.total_object_count(), 2, "Should have created 2 total objects");
+    assert_eq!(
+        tracker.total_object_count(),
+        2,
+        "Should have created 2 total objects"
+    );
 }

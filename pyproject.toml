@@ -49,14 +49,32 @@ python-source = "python"
 module-name = "norfair_rs._norfair_rs"
 
 [tool.pytest.ini_options]
-testpaths = ["tests/python"]
+testpaths = ["python/tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# Test files can have unused imports (for skipped tests) and style issues
+"python/tests/*.py" = ["F821", "E721", "B007", "E711", "B905", "E501"]
+# Type stubs have long signatures
+"*.pyi" = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
 
 [dependency-groups]
 dev = [
     "maturin>=1.10.2",
     "norfair>=2.3.0",
     "pytest>=9.0.1",
+    "pre-commit>=4.0.0",
+    "ruff>=0.8.0",
 ]

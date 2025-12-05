@@ -1,6 +1,7 @@
+#!/usr/bin/env -S uv run
 # /// script
+# requires-python = ">=3.10"
 # dependencies = ["numpy"]
-# python-version = "3.13"
 # ///
 """
 Generate deterministic test data for cross-language benchmarks.
@@ -138,6 +139,93 @@ def generate_scenario(
     }
 
 
+def generate_occlusion_scenario(
+    seed: int,
+    num_objects: int = 5,
+    num_frames: int = 50,
+    occlusion_duration: int = 5,
+    noise_std: float = 2.0,
+) -> dict:
+    """Generate scenario with deliberate occlusions for ReID testing.
+
+    Objects disappear for `occlusion_duration` frames and then reappear.
+    This tests the reid_hit_counter countdown and merge functionality.
+    """
+    rng = SimplePRNG(seed)
+
+    # Initialize objects with random positions and slower velocities
+    objects: list[SimulatedObject] = []
+    for _ in range(num_objects):
+        obj = SimulatedObject(
+            x=rng.next_range(100, 900),
+            y=rng.next_range(100, 700),
+            vx=rng.next_range(-2, 2),  # Slower to ensure reappearance is nearby
+            vy=rng.next_range(-2, 2),
+            width=rng.next_range(40, 70),
+            height=rng.next_range(40, 70),
+        )
+        objects.append(obj)
+
+    # Define occlusion periods for each object
+    # Object i is occluded from frame occlusion_start[i] to occlusion_start[i] + occlusion_duration
+    occlusion_start = []
+    for i in range(num_objects):
+        # Stagger occlusions to test different phases
+        start = 10 + i * 8  # Objects occlude at different times
+        occlusion_start.append(start)
+
+    # Generate frames
+    frames = []
+    for frame_idx in range(num_frames):
+        detections = []
+
+        for obj_idx, obj in enumerate(objects):
+            # Check if object is in occlusion period
+            occ_start = occlusion_start[obj_idx]
+            occ_end = occ_start + occlusion_duration
+
+            is_occluded = occ_start <= frame_idx < occ_end
+
+            if not is_occluded:
+                # Object is visible - add detection
+                x1, y1, x2, y2 = obj.get_bbox()
+                noise_x1 = rng.next_range(-noise_std, noise_std)
+                noise_y1 = rng.next_range(-noise_std, noise_std)
+                noise_x2 = rng.next_range(-noise_std, noise_std)
+                noise_y2 = rng.next_range(-noise_std, noise_std)
+
+                detections.append(
+                    {
+                        "bbox": [
+                            x1 + noise_x1,
+                            y1 + noise_y1,
+                            x2 + noise_x2,
+                            y2 + noise_y2,
+                        ],
+                        "ground_truth_id": obj_idx,
+                    }
+                )
+
+            # Move object (even during occlusion)
+            obj.step()
+
+        frames.append(
+            {
+                "frame_id": frame_idx,
+                "detections": detections,
+            }
+        )
+
+    return {
+        "seed": seed,
+        "num_objects": num_objects,
+        "num_frames": num_frames,
+        "occlusion_duration": occlusion_duration,
+        "noise_std": noise_std,
+        "frames": frames,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description="Generate benchmark test data")
     parser.add_argument("--force", action="store_true", help="Regenerate existing data files")
@@ -180,6 +268,23 @@ def main():
         # Calculate stats
         total_detections = sum(len(frame["detections"]) for frame in scenario["frames"])
         print(f"  -> {output_path} ({total_detections} total detections)")
+
+    # Generate occlusion scenario for ReID testing
+    occlusion_path = os.path.join(output_dir, "occlusion.json")
+    if force or not Path(occlusion_path).exists():
+        print("Generating occlusion scenario (5 objects, 50 frames, for ReID testing)...")
+        scenario = generate_occlusion_scenario(
+            seed=42,
+            num_objects=5,
+            num_frames=50,
+            occlusion_duration=5,
+        )
+        with open(occlusion_path, "w") as f:
+            json.dump(scenario, f)
+        total_detections = sum(len(frame["detections"]) for frame in scenario["frames"])
+        print(f"  -> {occlusion_path} ({total_detections} total detections)")
+    else:
+        print("Skipping occlusion scenario... Already exists!")
 
     print("\nDone! Data files generated in:", output_dir)
 

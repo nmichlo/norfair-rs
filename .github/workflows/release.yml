@@ -9,77 +9,38 @@ permissions:
   contents: read
 
 jobs:
-  linux:
-    runs-on: ubuntu-22.04
+  python-build:
     strategy:
       matrix:
-        target: [x86_64, aarch64]
+        include:
+          - { python-version: "3.12", runs-on: "ubuntu-latest", target: "x86_64" }
+          - { python-version: "3.12", runs-on: "ubuntu-latest", target: "aarch64" }
+          - { python-version: "3.12", runs-on: "windows-latest", target: "x86_64" }
+          - { python-version: "3.12", runs-on: "windows-latest", target: "aarch64" }
+          - { python-version: "3.12", runs-on: "macos-13", target: "x86_64" }
+          - { python-version: "3.12", runs-on: "macos-14", target: "aarch64" }
+    runs-on: ${{ matrix.runs-on }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-      - name: Build wheels
-        uses: PyO3/maturin-action@v1
+          python-version: ${{ matrix.python-version }}
+      - uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist
+          args: --release -i python${{ matrix.python-version }} --out dist
           sccache: true
           manylinux: auto
       - uses: actions/upload-artifact@v4
         with:
-          name: wheels-linux-${{ matrix.target }}
+          name: wheels-${{ matrix.python-version }}-${{ matrix.runs-on }}-${{ matrix.target }}
           path: dist
 
-  windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Build wheels
-        uses: PyO3/maturin-action@v1
-        with:
-          target: x64
-          args: --release --out dist
-          sccache: true
-      - uses: actions/upload-artifact@v4
-        with:
-          name: wheels-windows-x64
-          path: dist
-
-  macos:
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      matrix:
-        include:
-          - runner: macos-13
-            target: x86_64
-          - runner: macos-14
-            target: aarch64
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Build wheels
-        uses: PyO3/maturin-action@v1
-        with:
-          target: ${{ matrix.target }}
-          args: --release --out dist
-          sccache: true
-      - uses: actions/upload-artifact@v4
-        with:
-          name: wheels-macos-${{ matrix.target }}
-          path: dist
-
-  sdist:
+  python-sdist:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Build sdist
-        uses: PyO3/maturin-action@v1
+      - uses: actions/checkout@v6
+      - uses: PyO3/maturin-action@v1
         with:
           command: sdist
           args: --out dist
@@ -88,11 +49,16 @@ jobs:
           name: wheels-sdist
           path: dist
 
-  publish-pypi:
+  # https://docs.pypi.org/trusted-publishers/
+  # https://github.com/pypa/gh-action-pypi-publish
+  python-publish:
     name: Publish to PyPI
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
-    needs: [linux, windows, macos, sdist]
+    needs: [python-build, python-sdist]
+    environment:
+      name: pypi
+      url: https://pypi.org/p/norfair-rs
     permissions:
       id-token: write  # For trusted publishing
     steps:
@@ -104,14 +70,19 @@ jobs:
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
 
-  publish-crates:
+  # https://crates.io/docs/trusted-publishing
+  rust-publish:
     name: Publish to crates.io
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
+    environment: release  # Optional: for enhanced security
+    permissions:
+      id-token: write     # Required for OIDC token exchange
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
-      - name: Publish to crates.io
-        run: cargo publish
+      - uses: rust-lang/crates-io-auth-action@v1
+        id: auth
+      - run: cargo publish
         env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}

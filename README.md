@@ -1,8 +1,11 @@
-# norfair-rs
+## norfair-rs
 
 **Real-time multi-object tracking for Rust**
 
 [![License](https://img.shields.io/badge/License-BSD_3--Clause-blue.svg)](LICENSE)
+[![Crates.io](https://img.shields.io/crates/v/norfair-rs.svg)](https://crates.io/crates/norfair-rs)
+[![PyPI](https://img.shields.io/pypi/v/norfair-rs.svg)](https://pypi.org/project/norfair-rs/)
+[![Python](https://img.shields.io/pypi/pyversions/norfair-rs.svg)](https://pypi.org/project/norfair-rs/)
 [![Rust Version](https://img.shields.io/badge/Rust-1.70%2B-orange?logo=rust)](https://www.rust-lang.org)
 
 ---
@@ -19,6 +22,7 @@
 - **Rust-native performance:** Zero-cost abstractions, no GC, maximum speed
 - **Type-safe API:** Compile-time validation of tracking configurations
 - **Comprehensive Tests:** 278 tests ensuring correctness and equivalence with the original norfair library
+- **Drop-In-Replacement**: Python bindings with `uv add norfair_rs` and `import norfair_rs as norfair`
 
 ### Related Projects
 
@@ -53,14 +57,52 @@ Benchmarks run on Apple M3 Pro. See `examples/benchmark/` for reproduction scrip
 
 ## Installation
 
+### Rust
+
 Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-norfair = { git = "https://github.com/nmichlo/norfair-rs" }
+norfair-rs = "0.3"
 ```
 
-## Quick Start
+### Python (Drop-in Replacement)
+
+**norfair-rs** provides Python bindings that work as a drop-in replacement for the original norfair library, with 20-50x better performance:
+
+```bash
+uv add norfair-rs
+# or: pip install norfair-rs
+```
+
+Then simply change your import:
+
+```python
+# Before (original norfair)
+from norfair import Detection, Tracker
+
+# After (norfair-rs - same API, much faster!)
+from norfair_rs import Detection, Tracker
+```
+
+Most of your existing norfair code should work unchanged. See the [benchmark results](#benchmarks) for performance comparisons.
+
+<details>
+<summary><b>Python Limitations (Not Yet Supported)</b></summary>
+
+The following norfair features are not yet available in norfair-rs Python bindings:
+
+- **Custom Python callable distance functions** - Use built-in distance functions (`"iou"`, `"euclidean"`, `"frobenius"`, etc.) instead
+- **Custom Python callable reid_distance_function** - Re-identification with custom distance functions
+- **`create_keypoints_voting_distance()`** - Use `"keypoints_voting"` string or built-in implementation
+- **`create_normalized_mean_euclidean_distance()`** - Use `"mean_euclidean"` or implement normalization separately
+- **scipy distance functions** - Use the equivalent built-in functions via `get_distance_by_name()`
+
+All core tracking functionality works identically to the original norfair.
+
+</details>
+
+## Quick Start (Rust)
 
 ```rust
 use norfair_rs::{Detection, Tracker, TrackerConfig};
@@ -109,7 +151,8 @@ Here's how the same tracking workflow looks in the original Python norfair libra
 
 **Python:**
 ```python
-from norfair import Detection, Tracker
+# OLD: from norfair import Detection, Tracker
+from norfair_rs import Detection, Tracker
 
 # Create tracker
 tracker = Tracker(

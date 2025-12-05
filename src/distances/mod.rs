@@ -102,6 +102,7 @@ mod tests {
             is_initializing: false,
             detected_at_least_once_points: vec![true; rows],
             filter: crate::filter::FilterEnum::None(crate::filter::NoFilter::new(&estimate_matrix)),
+            initial_period: 1,
             num_points: rows,
             dim_points: cols,
             last_coord_transform: None,

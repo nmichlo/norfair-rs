@@ -146,12 +146,40 @@ impl Tracker {
             }
         }
 
-        // STAGE 2: Remove dead objects BEFORE predict step (matches Go behavior)
-        // Objects with hit_counter < 0 are removed; objects with hit_counter = 0 survive this frame
-        self.tracked_objects.retain(|obj| obj.hit_counter >= 0);
+        // STAGE 2: Remove dead objects BEFORE predict step (matches Python/Go behavior)
+        // With ReID: objects survive while reid_hit_counter >= 0, separate into alive/dead
+        // Without ReID: objects with hit_counter < 0 are removed
+        let dead_indices: Vec<usize> = if self.config.reid_hit_counter_max.is_none() {
+            // No ReID: remove dead objects (hit_counter < 0)
+            self.tracked_objects
+                .retain(|obj| obj.hit_counter_is_positive());
+            vec![] // No dead objects to track
+        } else {
+            // With ReID: keep objects with reid_hit_counter >= 0
+            self.tracked_objects
+                .retain(|obj| obj.reid_hit_counter_is_positive());
+            // Collect indices of dead objects (hit_counter < 0 but reid_hit_counter >= 0)
+            self.tracked_objects
+                .iter()
+                .enumerate()
+                .filter(|(_, obj)| !obj.hit_counter_is_positive())
+                .map(|(i, _)| i)
+                .collect()
+        };
 
         // STAGE 3: Age all tracked objects (predict step) - inline to avoid borrow issues
         for obj in &mut self.tracked_objects {
+            // ReID counter management (BEFORE hit_counter decrement - matches Python)
+            if obj.reid_hit_counter.is_none() {
+                if obj.hit_counter <= 0 {
+                    // Transition to ReID phase
+                    obj.reid_hit_counter = self.config.reid_hit_counter_max;
+                }
+            } else {
+                // Already in ReID phase, decrement
+                obj.reid_hit_counter = obj.reid_hit_counter.map(|c| c - 1);
+            }
+
             obj.age += 1;
             // Decrement hit_counter for ALL objects (matches Python/Go behavior)
             // Matched objects will get +2*period in hit_object(), unmatched decay by 1
@@ -224,6 +252,13 @@ impl Tracker {
             );
         }
 
+        // Get unmatched initialized objects (for ReID)
+        let unmatched_init_obj_indices: Vec<usize> =
+            get_unmatched(initialized_indices.len(), &matched_objs)
+                .into_iter()
+                .map(|i| initialized_indices[i])
+                .collect();
+
         // Get unmatched detections
         let unmatched_det_indices = get_unmatched(detections.len(), &matched_dets);
 
@@ -248,6 +283,12 @@ impl Tracker {
         let (init_matched_dets, init_matched_objs) =
             match_detections_and_objects(&init_distance_matrix, self.config.distance_threshold);
 
+        // Track matched initializing objects (for ReID)
+        let matched_init_obj_indices: Vec<usize> = init_matched_objs
+            .iter()
+            .map(|&i| initializing_indices[i])
+            .collect();
+
         // Update matched initializing objects
         for (&local_det_idx, &obj_local_idx) in
             init_matched_dets.iter().zip(init_matched_objs.iter())
@@ -260,6 +301,65 @@ impl Tracker {
                 period,
                 init_distance_matrix[(local_det_idx, obj_local_idx)],
             );
+        }
+
+        // STAGE: ReID Matching (if enabled)
+        // Match old objects (unmatched initialized + dead) with new initializing objects that got matched
+        if let Some(ref reid_distance) = self.config.reid_distance_function {
+            // Collect objects eligible for ReID: unmatched initialized + dead
+            let reid_object_indices: Vec<usize> = unmatched_init_obj_indices
+                .iter()
+                .chain(dead_indices.iter())
+                .cloned()
+                .collect();
+
+            // Only process if we have both candidates and objects to match
+            if !reid_object_indices.is_empty() && !matched_init_obj_indices.is_empty() {
+                // Build references for distance computation
+                let reid_obj_refs: Vec<&TrackedObject> = reid_object_indices
+                    .iter()
+                    .map(|&i| &self.tracked_objects[i])
+                    .collect();
+                let candidate_refs: Vec<&TrackedObject> = matched_init_obj_indices
+                    .iter()
+                    .map(|&i| &self.tracked_objects[i])
+                    .collect();
+
+                // Compute distance matrix using TrackedObject estimates as "detections"
+                // Note: reid_distance_function operates on TrackedObjects, using their estimates
+                let reid_distance_matrix =
+                    reid_distance.get_distances_objects(&reid_obj_refs, &candidate_refs);
+
+                // Match using same algorithm as detections
+                let (reid_matched_cands, reid_matched_objs) = match_detections_and_objects(
+                    &reid_distance_matrix,
+                    self.config.reid_distance_threshold,
+                );
+
+                // Process matches: merge old object with new, mark new for removal
+                let mut to_remove: Vec<usize> = vec![];
+                for (&cand_local, &obj_local) in
+                    reid_matched_cands.iter().zip(reid_matched_objs.iter())
+                {
+                    let old_obj_idx = reid_object_indices[obj_local];
+                    let new_obj_idx = matched_init_obj_indices[cand_local];
+
+                    // Get data from new object (need to clone due to borrow rules)
+                    let new_obj_data = self.tracked_objects[new_obj_idx].clone();
+
+                    // Merge: old object takes state from new object
+                    self.tracked_objects[old_obj_idx]
+                        .merge(&new_obj_data, self.config.past_detections_length);
+
+                    to_remove.push(new_obj_idx);
+                }
+
+                // Remove merged new objects (in reverse order to preserve indices)
+                to_remove.sort_unstable();
+                for idx in to_remove.into_iter().rev() {
+                    self.tracked_objects.remove(idx);
+                }
+            }
         }
 
         // Create new objects for remaining unmatched detections
@@ -408,6 +508,7 @@ impl Tracker {
             is_initializing: true,
             detected_at_least_once_points,
             filter,
+            initial_period: period,
             num_points,
             dim_points,
             last_coord_transform: coord_transform.map(|t| t.clone_box()),

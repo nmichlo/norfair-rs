@@ -211,6 +211,17 @@ impl PyDetection {
         self.inner.read().unwrap().age
     }
 
+    /// Alias for points, for compatibility with TrackedObject in ReID distance functions.
+    ///
+    /// This allows using the same distance function for both regular matching
+    /// (Detection, TrackedObject) and ReID matching (TrackedObject, TrackedObject),
+    /// since both will have an `.estimate` attribute.
+    #[getter]
+    fn estimate<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
+        let det = self.inner.read().unwrap();
+        dmatrix_to_numpy(py, &det.points)
+    }
+
     /// Set the age of this detection (called internally by tracker).
     #[setter]
     fn set_age(&self, value: Option<i32>) {

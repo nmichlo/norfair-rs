@@ -172,6 +172,10 @@ pub struct TrackedObject {
     /// The Kalman filter maintaining this object's state (enum-based static dispatch).
     pub(crate) filter: FilterEnum,
 
+    /// Initial period (frames) used when creating this object.
+    /// Needed for merge() to restore hit_counter correctly.
+    pub(crate) initial_period: i32,
+
     /// Number of points being tracked.
     pub(crate) num_points: usize,
 
@@ -180,6 +184,34 @@ pub struct TrackedObject {
 
     /// Last coordinate transformation (for absolute/relative conversion).
     pub(crate) last_coord_transform: Option<Box<dyn CoordinateTransformation>>,
+}
+
+impl Clone for TrackedObject {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id,
+            global_id: self.global_id,
+            initializing_id: self.initializing_id,
+            age: self.age,
+            hit_counter: self.hit_counter,
+            point_hit_counter: self.point_hit_counter.clone(),
+            last_detection: self.last_detection.clone(),
+            last_distance: self.last_distance,
+            current_min_distance: self.current_min_distance,
+            past_detections: self.past_detections.clone(),
+            label: self.label.clone(),
+            reid_hit_counter: self.reid_hit_counter,
+            estimate: self.estimate.clone(),
+            estimate_velocity: self.estimate_velocity.clone(),
+            is_initializing: self.is_initializing,
+            detected_at_least_once_points: self.detected_at_least_once_points.clone(),
+            filter: self.filter.clone(),
+            initial_period: self.initial_period,
+            num_points: self.num_points,
+            dim_points: self.dim_points,
+            last_coord_transform: self.last_coord_transform.as_ref().map(|t| t.clone_box()),
+        }
+    }
 }
 
 impl fmt::Debug for TrackedObject {
@@ -244,6 +276,74 @@ impl TrackedObject {
     pub fn live_points(&self) -> Vec<bool> {
         self.point_hit_counter.iter().map(|&c| c > 0).collect()
     }
+
+    /// Check if object survives ReID phase.
+    /// Returns true if reid_hit_counter is None OR >= 0.
+    /// Matches Python's `reid_hit_counter_is_positive` property.
+    #[inline]
+    pub fn reid_hit_counter_is_positive(&self) -> bool {
+        self.reid_hit_counter.map_or(true, |c| c >= 0)
+    }
+
+    /// Check if hit_counter is positive (object is alive).
+    /// Matches Python's `hit_counter_is_positive` property.
+    #[inline]
+    pub fn hit_counter_is_positive(&self) -> bool {
+        self.hit_counter >= 0
+    }
+
+    /// Merge with a not-yet-initialized TrackedObject (ReID match).
+    /// Self (old object) keeps its ID but takes state from the new object.
+    ///
+    /// Matches Python's `TrackedObject.merge()` method.
+    pub fn merge(&mut self, other: &TrackedObject, past_detections_length: usize) {
+        // Reset ReID counter (back to life!)
+        self.reid_hit_counter = None;
+
+        // Restore hit counter using OUR initial_period (self.initial_period * 2)
+        self.hit_counter = self.initial_period * 2;
+
+        // Take new object's state
+        self.point_hit_counter = other.point_hit_counter.clone();
+        self.last_distance = other.last_distance;
+        self.current_min_distance = other.current_min_distance;
+        self.last_detection = other.last_detection.clone();
+        self.detected_at_least_once_points = other.detected_at_least_once_points.clone();
+        self.filter = other.filter.clone();
+
+        // Merge past detections using the conditional add logic
+        for det in &other.past_detections {
+            self.conditionally_add_to_past_detections(det.clone(), past_detections_length);
+        }
+
+        // Update cached estimate from new filter
+        self.estimate = self.filter.get_state();
+    }
+
+    /// Add detection to past_detections, maintaining uniform distribution.
+    ///
+    /// Matches Python's `TrackedObject._conditionally_add_to_past_detections()`.
+    pub fn conditionally_add_to_past_detections(
+        &mut self,
+        mut detection: Detection,
+        past_detections_length: usize,
+    ) {
+        if past_detections_length == 0 {
+            return;
+        }
+        if self.past_detections.len() < past_detections_length {
+            detection.age = Some(self.age);
+            self.past_detections.push_back(detection);
+        } else if let Some(front) = self.past_detections.front() {
+            if let Some(front_age) = front.age {
+                if self.age >= front_age * past_detections_length as i32 {
+                    self.past_detections.pop_front();
+                    detection.age = Some(self.age);
+                    self.past_detections.push_back(detection);
+                }
+            }
+        }
+    }
 }
 
 impl Default for TrackedObject {
@@ -266,6 +366,7 @@ impl Default for TrackedObject {
             is_initializing: true,
             detected_at_least_once_points: vec![true], // Default: 1 point, detected
             filter: FilterEnum::None(crate::filter::NoFilter::new(&DMatrix::zeros(1, 2))),
+            initial_period: 1,
             num_points: 1,
             dim_points: 2,
             last_coord_transform: None,

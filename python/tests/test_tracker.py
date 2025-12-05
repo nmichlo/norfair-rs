@@ -310,7 +310,6 @@ def test_multiple_trackers():
     assert tracker2.total_object_count == 1
 
 
-@pytest.mark.skip(reason="reid re-identification logic not yet implemented in norfair_rs Tracker")
 def test_reid_hit_counter():
     #
     # test reid hit counter and initializations

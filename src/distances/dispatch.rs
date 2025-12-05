@@ -48,6 +48,37 @@ impl CustomDistance {
     ) -> DMatrix<f64> {
         (self.func)(objects, candidates)
     }
+
+    /// Get distances between two sets of TrackedObjects (for ReID matching).
+    ///
+    /// This creates temporary Detections from the candidate TrackedObjects.
+    /// The underlying Python callback will receive (Detection, TrackedObject).
+    ///
+    /// Note: For Python callables that expect (TrackedObject, TrackedObject),
+    /// this won't work correctly. A separate reid-specific callback type would be needed.
+    #[inline]
+    pub fn get_distances_objects(
+        &self,
+        objects: &[&TrackedObject],
+        candidates: &[&TrackedObject],
+    ) -> DMatrix<f64> {
+        // Create temporary detections from candidate estimates
+        let temp_detections: Vec<Detection> = candidates
+            .iter()
+            .map(|obj| Detection {
+                points: obj.estimate.clone(),
+                scores: None,
+                label: obj.label.clone(),
+                embedding: None,
+                data: None,
+                absolute_points: Some(obj.estimate.clone()),
+                age: Some(obj.age),
+            })
+            .collect();
+
+        let det_refs: Vec<&Detection> = temp_detections.iter().collect();
+        (self.func)(objects, &det_refs)
+    }
 }
 
 /// Enum-based distance function for static dispatch.
@@ -105,6 +136,45 @@ impl DistanceFunction {
             // Custom distance function (Python callables)
             #[cfg(feature = "python")]
             DistanceFunction::Custom(d) => d.get_distances(objects, candidates),
+        }
+    }
+
+    /// Get distances between two sets of TrackedObjects (for ReID matching).
+    ///
+    /// For built-in distance functions, creates temporary Detections from candidate estimates.
+    /// For custom Python callables, this requires the reid_distance_function to accept
+    /// (TrackedObject, TrackedObject) -> float (not Detection, TrackedObject).
+    #[inline(always)]
+    pub fn get_distances_objects(
+        &self,
+        objects: &[&TrackedObject],
+        candidates: &[&TrackedObject],
+    ) -> DMatrix<f64> {
+        // For built-in functions, create temporary detections from candidate estimates
+        // and use the standard distance computation
+        let temp_detections: Vec<Detection> = candidates
+            .iter()
+            .map(|obj| Detection {
+                points: obj.estimate.clone(),
+                scores: None,
+                label: obj.label.clone(),
+                embedding: None,
+                data: None,
+                absolute_points: Some(obj.estimate.clone()),
+                age: Some(obj.age),
+            })
+            .collect();
+
+        let det_refs: Vec<&Detection> = temp_detections.iter().collect();
+
+        match self {
+            // For Custom (Python callback), we need special handling
+            // The callback expects (TrackedObject, TrackedObject), not (Detection, TrackedObject)
+            #[cfg(feature = "python")]
+            DistanceFunction::Custom(d) => d.get_distances_objects(objects, candidates),
+
+            // For all built-in functions, use the standard detection-based distance
+            _ => self.get_distances(objects, &det_refs),
         }
     }
 }
@@ -207,6 +277,7 @@ mod tests {
             is_initializing: false,
             detected_at_least_once_points: vec![true; rows],
             filter: crate::filter::FilterEnum::None(crate::filter::NoFilter::new(&estimate_matrix)),
+            initial_period: 1,
             num_points: rows,
             dim_points: cols,
             last_coord_transform: None,

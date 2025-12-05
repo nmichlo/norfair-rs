@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 
 import numpy as np
-from norfair_rs import Detection, Tracker
+from norfair_rs import Detection, Tracker, _reset_global_id_counter
 
 
 def find_testdata_dir() -> Path:
@@ -82,16 +82,16 @@ def compare_tracked_objects(
 
     # Compare each object
     for i, (exp, act) in enumerate(zip(expected, actual)):
-        # Compare ID (Python norfair starts at 1, Rust starts at 0 - adjust for offset)
-        act_id = act.id + 1 if act.id is not None else None
+        # Compare ID (both norfair and norfair_rs are 1-indexed)
+        act_id = act.id
         if exp.get("id") != act_id:
             raise AssertionError(
                 f"Step {step_idx} frame {frame_id}: Object {i} ID mismatch: "
                 f"expected {exp.get('id')}, got {act_id} (raw: {act.id})"
             )
 
-        # Compare initializing_id (adjust for offset)
-        act_init_id = act.initializing_id + 1 if act.initializing_id is not None else -1
+        # Compare initializing_id (no adjustment needed - both 1-indexed)
+        act_init_id = act.initializing_id if act.initializing_id is not None else -1
         if exp.get("initializing_id") != act_init_id:
             raise AssertionError(
                 f"Step {step_idx} frame {frame_id}: Object {i} initializing_id mismatch: "
@@ -136,6 +136,9 @@ def compare_tracked_objects(
 
 def run_fixture_test(scenario: str):
     """Run a fixture test for the given scenario."""
+    # Reset global ID counter to ensure consistent IDs across test runs
+    _reset_global_id_counter()
+
     fixture = load_fixture(scenario)
     tracker = create_tracker(fixture["tracker_config"])
 

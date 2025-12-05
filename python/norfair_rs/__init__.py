@@ -70,6 +70,7 @@ from collections.abc import Callable
 
 import numpy as np
 
+# Test utilities (internal use)
 from norfair_rs._norfair_rs import (
     # Core classes - FULLY COMPATIBLE with norfair
     Detection,
@@ -89,6 +90,8 @@ from norfair_rs._norfair_rs import (
     __norfair_compat_version__,
     # Version info
     __version__,
+    _reset_global_id_counter,  # noqa F401
+    # helper? internal?
     frobenius,
     # Distance functions - FULLY COMPATIBLE with norfair
     get_distance_by_name,

@@ -117,8 +117,9 @@ impl Tracker {
         Ok(Self {
             config,
             tracked_objects: Vec::new(),
-            instance_id_counter: 0,
-            initializing_id_counter: 0,
+            // Start at 1 to match Python/Go behavior (IDs are 1-indexed)
+            instance_id_counter: 1,
+            initializing_id_counter: 1,
         })
     }
 
@@ -281,8 +282,9 @@ impl Tracker {
     }
 
     /// Get the total number of objects that have been assigned permanent IDs.
+    /// Counter starts at 1, so we subtract 1 to get the count.
     pub fn total_object_count(&self) -> i32 {
-        self.instance_id_counter
+        self.instance_id_counter - 1
     }
 
     /// Get the current number of active (non-initializing) objects.

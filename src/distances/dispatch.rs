@@ -4,6 +4,9 @@
 //! distance types and dispatches without vtable lookups, improving performance
 //! for hot-path code.
 
+#[cfg(feature = "python")]
+use std::sync::Arc;
+
 use super::functions::{frobenius, iou, mean_euclidean, mean_manhattan};
 use super::scalar::ScalarDistance;
 use super::scipy_wrapper::ScipyDistance;
@@ -11,6 +14,41 @@ use super::traits::Distance;
 use super::vectorized::VectorizedDistance;
 use crate::{Detection, TrackedObject};
 use nalgebra::DMatrix;
+
+/// Custom distance function type for Python callbacks.
+///
+/// Uses `Arc` to allow cloning while sharing the underlying function.
+#[cfg(feature = "python")]
+pub type CustomDistanceFn =
+    Arc<dyn Fn(&[&TrackedObject], &[&Detection]) -> DMatrix<f64> + Send + Sync>;
+
+/// Wrapper for custom distance functions (e.g., Python callables).
+#[cfg(feature = "python")]
+#[derive(Clone)]
+pub struct CustomDistance {
+    func: CustomDistanceFn,
+}
+
+#[cfg(feature = "python")]
+impl CustomDistance {
+    /// Create a new custom distance from a function.
+    pub fn new<F>(f: F) -> Self
+    where
+        F: Fn(&[&TrackedObject], &[&Detection]) -> DMatrix<f64> + Send + Sync + 'static,
+    {
+        Self { func: Arc::new(f) }
+    }
+
+    /// Get distances between objects and candidates.
+    #[inline]
+    pub fn get_distances(
+        &self,
+        objects: &[&TrackedObject],
+        candidates: &[&Detection],
+    ) -> DMatrix<f64> {
+        (self.func)(objects, candidates)
+    }
+}
 
 /// Enum-based distance function for static dispatch.
 ///
@@ -33,6 +71,11 @@ pub enum DistanceFunction {
     ScipyManhattan(ScipyDistance),
     ScipyCosine(ScipyDistance),
     ScipyChebyshev(ScipyDistance),
+
+    /// Custom distance function (used for Python callables).
+    /// Only available with the "python" feature.
+    #[cfg(feature = "python")]
+    Custom(CustomDistance),
 }
 
 impl DistanceFunction {
@@ -58,6 +101,10 @@ impl DistanceFunction {
             DistanceFunction::ScipyManhattan(d) => d.get_distances(objects, candidates),
             DistanceFunction::ScipyCosine(d) => d.get_distances(objects, candidates),
             DistanceFunction::ScipyChebyshev(d) => d.get_distances(objects, candidates),
+
+            // Custom distance function (Python callables)
+            #[cfg(feature = "python")]
+            DistanceFunction::Custom(d) => d.get_distances(objects, candidates),
         }
     }
 }
@@ -197,5 +244,160 @@ mod tests {
     #[should_panic(expected = "Unknown distance function")]
     fn test_distance_function_invalid() {
         distance_function_by_name("invalid_distance");
+    }
+
+    // ===== CustomDistance Tests (Python feature only) =====
+
+    #[cfg(feature = "python")]
+    #[test]
+    fn test_custom_distance_basic() {
+        use std::sync::Arc;
+
+        // Create a simple custom distance function that returns euclidean distance
+        let custom = CustomDistance::new(|objects, candidates| {
+            let n_cands = candidates.len();
+            let n_objs = objects.len();
+            let mut matrix = DMatrix::zeros(n_cands, n_objs);
+
+            for (c, cand) in candidates.iter().enumerate() {
+                for (o, obj) in objects.iter().enumerate() {
+                    // Simple euclidean distance between first points
+                    let det_point = cand.points.row(0);
+                    let obj_point = obj.estimate.row(0);
+                    let diff: f64 = det_point
+                        .iter()
+                        .zip(obj_point.iter())
+                        .map(|(a, b)| (a - b).powi(2))
+                        .sum();
+                    matrix[(c, o)] = diff.sqrt();
+                }
+            }
+            matrix
+        });
+
+        let det = create_mock_detection(&[1.0, 2.0], 1, 2);
+        let obj = create_mock_tracked_object(&[1.0, 2.0], 1, 2);
+
+        let matrix = custom.get_distances(&[&obj], &[&det]);
+        assert!(
+            (matrix[(0, 0)] - 0.0).abs() < 1e-6,
+            "Perfect match should have distance 0"
+        );
+    }
+
+    #[cfg(feature = "python")]
+    #[test]
+    fn test_custom_distance_nonzero() {
+        // Custom distance that returns a fixed value
+        let custom = CustomDistance::new(|objects, candidates| {
+            let n_cands = candidates.len();
+            let n_objs = objects.len();
+            let mut matrix = DMatrix::zeros(n_cands, n_objs);
+            for c in 0..n_cands {
+                for o in 0..n_objs {
+                    matrix[(c, o)] = 42.0; // Fixed distance
+                }
+            }
+            matrix
+        });
+
+        let det = create_mock_detection(&[1.0, 2.0], 1, 2);
+        let obj = create_mock_tracked_object(&[100.0, 200.0], 1, 2);
+
+        let matrix = custom.get_distances(&[&obj], &[&det]);
+        assert!(
+            (matrix[(0, 0)] - 42.0).abs() < 1e-6,
+            "Should return fixed value 42"
+        );
+    }
+
+    #[cfg(feature = "python")]
+    #[test]
+    fn test_custom_distance_multiple_objects_and_detections() {
+        // Custom distance that returns row + col index
+        let custom = CustomDistance::new(|objects, candidates| {
+            let n_cands = candidates.len();
+            let n_objs = objects.len();
+            let mut matrix = DMatrix::zeros(n_cands, n_objs);
+            for c in 0..n_cands {
+                for o in 0..n_objs {
+                    matrix[(c, o)] = (c + o) as f64;
+                }
+            }
+            matrix
+        });
+
+        let det1 = create_mock_detection(&[1.0, 1.0], 1, 2);
+        let det2 = create_mock_detection(&[2.0, 2.0], 1, 2);
+        let obj1 = create_mock_tracked_object(&[10.0, 10.0], 1, 2);
+        let obj2 = create_mock_tracked_object(&[20.0, 20.0], 1, 2);
+
+        let matrix = custom.get_distances(&[&obj1, &obj2], &[&det1, &det2]);
+
+        // Matrix should be 2x2 (2 candidates x 2 objects)
+        assert_eq!(matrix.nrows(), 2);
+        assert_eq!(matrix.ncols(), 2);
+
+        // Check values: matrix[(c, o)] = c + o
+        assert!((matrix[(0, 0)] - 0.0).abs() < 1e-6); // c=0, o=0
+        assert!((matrix[(0, 1)] - 1.0).abs() < 1e-6); // c=0, o=1
+        assert!((matrix[(1, 0)] - 1.0).abs() < 1e-6); // c=1, o=0
+        assert!((matrix[(1, 1)] - 2.0).abs() < 1e-6); // c=1, o=1
+    }
+
+    #[cfg(feature = "python")]
+    #[test]
+    fn test_distance_function_custom_variant() {
+        // Test DistanceFunction::Custom variant works through the enum dispatch
+        let custom = CustomDistance::new(|_objects, _candidates| DMatrix::from_element(1, 1, 5.5));
+
+        let distance = DistanceFunction::Custom(custom);
+
+        let det = create_mock_detection(&[1.0, 2.0], 1, 2);
+        let obj = create_mock_tracked_object(&[1.0, 2.0], 1, 2);
+
+        let matrix = distance.get_distances(&[&obj], &[&det]);
+        assert!(
+            (matrix[(0, 0)] - 5.5).abs() < 1e-6,
+            "Custom distance should return 5.5"
+        );
+    }
+
+    #[cfg(feature = "python")]
+    #[test]
+    fn test_custom_distance_clone() {
+        // Test that CustomDistance can be cloned (via Arc)
+        let custom = CustomDistance::new(|_objects, _candidates| DMatrix::from_element(1, 1, 7.0));
+
+        let custom_clone = custom.clone();
+
+        let det = create_mock_detection(&[1.0, 2.0], 1, 2);
+        let obj = create_mock_tracked_object(&[1.0, 2.0], 1, 2);
+
+        // Both should return the same value
+        let matrix1 = custom.get_distances(&[&obj], &[&det]);
+        let matrix2 = custom_clone.get_distances(&[&obj], &[&det]);
+
+        assert!((matrix1[(0, 0)] - 7.0).abs() < 1e-6);
+        assert!((matrix2[(0, 0)] - 7.0).abs() < 1e-6);
+    }
+
+    #[cfg(feature = "python")]
+    #[test]
+    fn test_distance_function_custom_clone() {
+        // Test that DistanceFunction::Custom can be cloned
+        let custom = CustomDistance::new(|_objects, _candidates| DMatrix::from_element(1, 1, 3.14));
+
+        let distance = DistanceFunction::Custom(custom);
+        let distance_clone = distance.clone();
+
+        let det = create_mock_detection(&[1.0, 2.0], 1, 2);
+        let obj = create_mock_tracked_object(&[1.0, 2.0], 1, 2);
+
+        let matrix1 = distance.get_distances(&[&obj], &[&det]);
+        let matrix2 = distance_clone.get_distances(&[&obj], &[&det]);
+
+        assert!((matrix1[(0, 0)] - 3.14).abs() < 1e-6);
+        assert!((matrix2[(0, 0)] - 3.14).abs() < 1e-6);
     }
 }

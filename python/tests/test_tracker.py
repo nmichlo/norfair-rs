@@ -310,10 +310,8 @@ def test_multiple_trackers():
     assert tracker2.total_object_count == 1
 
 
-@pytest.mark.skip(reason="Python callable reid_distance_function not yet supported in norfair_rs")
+@pytest.mark.skip(reason="reid re-identification logic not yet implemented in norfair_rs Tracker")
 def test_reid_hit_counter():
-    # NOTE: Python callable reid_distance_function not yet supported in norfair_rs
-    pytest.skip("Python callable reid_distance_function not yet supported in norfair_rs")
     #
     # test reid hit counter and initializations
     #

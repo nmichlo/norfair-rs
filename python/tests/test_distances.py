@@ -403,3 +403,85 @@ def test_scipy_distance(mock_obj, mock_det):
     assert type(dist_matrix) == np.ndarray
     assert dist_matrix.shape == (1, 1)
     assert dist_matrix[0, 0] == 1.0
+
+
+def test_tracker_with_callable_distance():
+    """Test that Tracker can use a Python callable as distance function."""
+    import warnings
+
+    # Define a simple euclidean distance function
+    def my_euclidean_distance(detection, tracked_object):
+        det_pts = detection.points
+        obj_pts = tracked_object.estimate
+        return np.linalg.norm(det_pts - obj_pts)
+
+    # Create tracker with callable - should emit warning
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        tracker = Tracker(
+            distance_function=my_euclidean_distance,
+            distance_threshold=50.0,
+            hit_counter_max=5,
+            initialization_delay=0,
+        )
+        assert len(w) == 1
+        assert "Python callable" in str(w[0].message)
+
+    # Track a stationary object
+    for frame in range(5):
+        det = Detection(np.array([[100.0, 100.0]]))
+        tracked = tracker.update([det])
+        assert len(tracked) == 1, f"Expected 1 object, got {len(tracked)}"
+
+    assert tracker.total_object_count == 1
+
+
+def test_tracker_callable_distance_high_distance():
+    """Test that callable returning high distances creates multiple objects."""
+    import warnings
+
+    def always_high_distance(det, obj):
+        return 1000.0
+
+    with warnings.catch_warnings(record=True):
+        warnings.simplefilter("always")
+        tracker = Tracker(
+            distance_function=always_high_distance,
+            distance_threshold=50.0,
+            hit_counter_max=10,
+            initialization_delay=0,
+        )
+
+    # Each detection should create a new object since nothing matches
+    for _ in range(3):
+        det = Detection(np.array([[100.0, 100.0]]))
+        tracker.update([det])
+
+    assert (
+        tracker.total_object_count >= 2
+    ), f"Should create multiple objects, got {tracker.total_object_count}"
+
+
+def test_tracker_callable_distance_zero_distance():
+    """Test that callable returning zero always matches."""
+    import warnings
+
+    def always_zero_distance(det, obj):
+        return 0.0
+
+    with warnings.catch_warnings(record=True):
+        warnings.simplefilter("always")
+        tracker = Tracker(
+            distance_function=always_zero_distance,
+            distance_threshold=50.0,
+            hit_counter_max=10,
+            initialization_delay=0,
+        )
+
+    # All detections should match the same object
+    for frame in range(5):
+        det = Detection(np.array([[frame * 100.0, frame * 100.0]]))
+        tracked = tracker.update([det])
+        assert len(tracked) == 1
+
+    assert tracker.total_object_count == 1, "Should only have 1 object"

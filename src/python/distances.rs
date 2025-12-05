@@ -478,3 +478,58 @@ pub fn iou<'py>(
 ) -> PyResult<Bound<'py, PyArray2<f64>>> {
     iou_inner(py, candidates, objects)
 }
+
+// ===== Custom distance function support =====
+
+use crate::distances::{CustomDistance, DistanceFunction};
+
+/// Create a DistanceFunction::Custom from a Python callable.
+///
+/// The callable should take (Detection, TrackedObject) and return a float distance.
+/// This function wraps the Python callable in a Rust closure that can be used
+/// by the Tracker's distance computation.
+pub fn create_custom_distance_from_callable(
+    py: Python<'_>,
+    callable: PyObject,
+) -> DistanceFunction {
+    // Clone the callable for use inside the closure
+    let callable = callable.clone_ref(py);
+
+    DistanceFunction::Custom(CustomDistance::new(move |objects, candidates| {
+        // We need to acquire the GIL to call into Python
+        // This is safe because PyTracker.update() already holds the GIL
+        pyo3::Python::with_gil(|py| {
+            let n_candidates = candidates.len();
+            let n_objects = objects.len();
+            let mut matrix = DMatrix::zeros(n_candidates, n_objects);
+
+            for (c, cand) in candidates.iter().enumerate() {
+                for (o, obj) in objects.iter().enumerate() {
+                    // Convert Rust types to Python objects
+                    let py_det = PyDetection::from_detection((*cand).clone());
+                    let py_obj = PyTrackedObject::from_tracked_object(obj);
+
+                    // Call the Python callable
+                    match callable.call1(py, (py_det, py_obj)) {
+                        Ok(result) => {
+                            match result.extract::<f64>(py) {
+                                Ok(dist) => matrix[(c, o)] = dist,
+                                Err(e) => {
+                                    // Log error and use infinity as fallback
+                                    eprintln!("Error extracting distance: {}", e);
+                                    matrix[(c, o)] = f64::INFINITY;
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            // Log error and use infinity as fallback
+                            eprintln!("Error calling distance function: {}", e);
+                            matrix[(c, o)] = f64::INFINITY;
+                        }
+                    }
+                }
+            }
+            matrix
+        })
+    }))
+}

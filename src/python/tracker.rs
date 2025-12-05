@@ -7,7 +7,7 @@ use crate::distances::{try_distance_function_by_name, DistanceFunction};
 use crate::{Detection, Tracker, TrackerConfig};
 
 use super::detection::PyDetection;
-use super::distances::{extract_distance, PyBuiltinDistance, PyDistanceEnum};
+use super::distances::{create_custom_distance_from_callable, PyBuiltinDistance};
 use super::filters::extract_filter_factory;
 use super::tracked_object::PyTrackedObject;
 use super::transforms::extract_transform;
@@ -32,8 +32,6 @@ use super::transforms::extract_transform;
 #[pyclass(name = "Tracker")]
 pub struct PyTracker {
     inner: Tracker,
-    /// Store the Python distance function if using a callable
-    py_distance: Option<PyDistanceEnum>,
 }
 
 #[pymethods]
@@ -89,11 +87,7 @@ impl PyTracker {
         reid_distance_threshold: f64,
         reid_hit_counter_max: Option<i32>,
     ) -> PyResult<Self> {
-        // Extract distance function - convert to DistanceFunction enum
-        let py_distance = extract_distance(py, distance_function)?;
-
-        // Get the DistanceFunction enum for built-in distances
-        // For Python callables, we currently don't support them (would need custom tracker path)
+        // Convert distance_function to DistanceFunction enum
         let rust_distance: DistanceFunction =
             if let Ok(name) = distance_function.extract::<String>() {
                 // String name - use distance_function_by_name
@@ -101,11 +95,23 @@ impl PyTracker {
             } else if let Ok(d) = distance_function.extract::<PyRef<PyBuiltinDistance>>() {
                 // PyBuiltinDistance - use its name
                 try_distance_function_by_name(&d.name).map_err(|e| PyValueError::new_err(e))?
+            } else if distance_function.is_callable() {
+                // Python callable - emit warning and create Custom distance
+                let warnings = py.import("warnings")?;
+                warnings.call_method1(
+                    "warn",
+                    (
+                        "Using a Python callable as distance_function. This will be slower \
+                         than built-in distance functions like 'euclidean' or 'iou'. \
+                         Consider using a string name for better performance.",
+                        py.get_type::<pyo3::exceptions::PyUserWarning>(),
+                    ),
+                )?;
+
+                create_custom_distance_from_callable(py, distance_function.clone().unbind())
             } else {
-                // Python callable - not yet supported with enum-based tracker
                 return Err(PyValueError::new_err(
-                    "Python callable distance functions are not yet supported. \
-                 Please use a string name like 'euclidean', 'iou', 'frobenius', etc.",
+                    "distance_function must be a string, Distance object, or callable",
                 ));
             };
 
@@ -137,21 +143,41 @@ impl PyTracker {
         config.reid_distance_threshold = reid_distance_threshold;
         config.reid_hit_counter_max = reid_hit_counter_max;
 
-        // TODO: Handle reid_distance_function if provided
+        // Handle reid_distance_function if provided
+        if let Some(reid_df) = reid_distance_function {
+            let rust_reid_distance: DistanceFunction = if let Ok(name) = reid_df.extract::<String>()
+            {
+                // String name - use distance_function_by_name
+                try_distance_function_by_name(&name).map_err(|e| PyValueError::new_err(e))?
+            } else if let Ok(d) = reid_df.extract::<PyRef<PyBuiltinDistance>>() {
+                // PyBuiltinDistance - use its name
+                try_distance_function_by_name(&d.name).map_err(|e| PyValueError::new_err(e))?
+            } else if reid_df.is_callable() {
+                // Python callable - emit warning and create Custom distance
+                let warnings = py.import("warnings")?;
+                warnings.call_method1(
+                    "warn",
+                    (
+                        "Using a Python callable as reid_distance_function. This will be slower \
+                             than built-in distance functions like 'euclidean' or 'iou'. \
+                             Consider using a string name for better performance.",
+                        py.get_type::<pyo3::exceptions::PyUserWarning>(),
+                    ),
+                )?;
+
+                create_custom_distance_from_callable(py, reid_df.clone().unbind())
+            } else {
+                return Err(PyValueError::new_err(
+                    "reid_distance_function must be a string, Distance object, or callable",
+                ));
+            };
+            config.reid_distance_function = Some(rust_reid_distance);
+        }
 
         // Create tracker
         let tracker = Tracker::new(config).map_err(|e| PyValueError::new_err(e.to_string()))?;
 
-        // Store Python distance if it's a callable (for future use)
-        let py_distance_opt = match &py_distance {
-            PyDistanceEnum::Builtin(_) => None,
-            _ => Some(py_distance),
-        };
-
-        Ok(Self {
-            inner: tracker,
-            py_distance: py_distance_opt,
-        })
+        Ok(Self { inner: tracker })
     }
 
     /// Update the tracker with new detections.
@@ -198,11 +224,7 @@ impl PyTracker {
             }
         }
 
-        // If we have a Python callable distance, we need to handle it specially
-        // For now, we use the built-in distance in the Rust tracker
-        // TODO: Implement proper Python callable support by wrapping in Distance trait
-
-        // Update tracker
+        // Update tracker - works for both builtin and custom distance functions
         let tracked = self.inner.update(rust_detections, period, transform_ref);
 
         // Get Python coordinate transformation reference if provided

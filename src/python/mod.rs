@@ -24,6 +24,15 @@ pub use tracked_object::PyTrackedObject;
 pub use tracker::PyTracker;
 pub use transforms::PyTranslationTransformation;
 
+/// Reset global ID counter (for testing only).
+///
+/// This resets the global ID counter used for TrackedObject global IDs.
+/// Only use this in test fixtures to ensure consistent IDs across test runs.
+#[pyfunction]
+fn _reset_global_id_counter() {
+    crate::tracked_object::reset_global_counter();
+}
+
 /// Python module for norfair-rs.
 ///
 /// Provides object tracking functionality compatible with the Python norfair library.
@@ -55,6 +64,9 @@ fn _norfair_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(distances::mean_euclidean, m)?)?;
     m.add_function(wrap_pyfunction!(distances::mean_manhattan, m)?)?;
     m.add_function(wrap_pyfunction!(distances::iou, m)?)?;
+
+    // Test utilities
+    m.add_function(wrap_pyfunction!(_reset_global_id_counter, m)?)?;
 
     // Version info
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;

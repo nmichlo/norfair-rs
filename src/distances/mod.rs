@@ -15,6 +15,8 @@ mod scipy_wrapper;
 mod traits;
 mod vectorized;
 
+#[cfg(feature = "python")]
+pub use dispatch::CustomDistance;
 pub use dispatch::{distance_function_by_name, try_distance_function_by_name, DistanceFunction};
 pub use functions::*;
 pub use scalar::ScalarDistance;

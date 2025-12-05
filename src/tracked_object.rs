@@ -9,13 +9,21 @@ use std::fmt;
 use std::sync::atomic::{AtomicI32, Ordering};
 
 /// Global ID counter for unique IDs across all factories.
-static GLOBAL_ID_COUNTER: AtomicI32 = AtomicI32::new(0);
+/// Starts at 1 to match Python/Go behavior (IDs are 1-indexed).
+static GLOBAL_ID_COUNTER: AtomicI32 = AtomicI32::new(1);
 
 /// Get the next global ID (unique across all trackers/factories).
 /// Uses Relaxed ordering since we only need uniqueness, not memory ordering.
 #[inline]
 pub fn get_next_global_id() -> i32 {
     GLOBAL_ID_COUNTER.fetch_add(1, Ordering::Relaxed)
+}
+
+/// Reset the global ID counter (for testing only).
+/// Resets to 1 since IDs are 1-indexed.
+#[cfg(any(test, feature = "python"))]
+pub fn reset_global_counter() {
+    GLOBAL_ID_COUNTER.store(1, Ordering::Relaxed);
 }
 
 /// Factory for creating tracked objects with unique IDs.
@@ -34,10 +42,11 @@ pub struct TrackedObjectFactory {
 
 impl TrackedObjectFactory {
     /// Create a new TrackedObjectFactory.
+    /// Counters start at 1 to match Python/Go behavior (IDs are 1-indexed).
     pub fn new() -> Self {
         Self {
-            permanent_id_counter: AtomicI32::new(0),
-            initializing_id_counter: AtomicI32::new(0),
+            permanent_id_counter: AtomicI32::new(1),
+            initializing_id_counter: AtomicI32::new(1),
         }
     }
 
@@ -69,19 +78,22 @@ impl TrackedObjectFactory {
     }
 
     /// Get the current count of permanent IDs issued.
+    /// Counter starts at 1, so we subtract 1 to get the actual count.
     pub fn permanent_id_count(&self) -> i32 {
-        self.permanent_id_counter.load(Ordering::Relaxed)
+        self.permanent_id_counter.load(Ordering::Relaxed) - 1
     }
 
     /// Get the current count of initializing IDs issued.
+    /// Counter starts at 1, so we subtract 1 to get the actual count.
     pub fn initializing_id_count(&self) -> i32 {
-        self.initializing_id_counter.load(Ordering::Relaxed)
+        self.initializing_id_counter.load(Ordering::Relaxed) - 1
     }
 
     /// Reset the global ID counter (for testing only).
-    #[cfg(test)]
+    /// Resets to 1 since IDs are 1-indexed.
+    #[cfg(any(test, feature = "python"))]
     pub fn reset_global_counter() {
-        GLOBAL_ID_COUNTER.store(0, Ordering::Relaxed);
+        GLOBAL_ID_COUNTER.store(1, Ordering::Relaxed);
     }
 }
 
@@ -274,20 +286,20 @@ mod tests {
     fn test_factory_get_initializing_id() {
         let factory = TrackedObjectFactory::new();
 
-        // Should get sequential IDs
-        assert_eq!(factory.get_initializing_id(), 0);
+        // Should get sequential IDs (starting at 1 to match Python/Go)
         assert_eq!(factory.get_initializing_id(), 1);
         assert_eq!(factory.get_initializing_id(), 2);
+        assert_eq!(factory.get_initializing_id(), 3);
     }
 
     #[test]
     fn test_factory_get_permanent_id() {
         let factory = TrackedObjectFactory::new();
 
-        // Should get sequential IDs
-        assert_eq!(factory.get_permanent_id(), 0);
+        // Should get sequential IDs (starting at 1 to match Python/Go)
         assert_eq!(factory.get_permanent_id(), 1);
         assert_eq!(factory.get_permanent_id(), 2);
+        assert_eq!(factory.get_permanent_id(), 3);
     }
 
     #[test]
@@ -296,11 +308,11 @@ mod tests {
         let factory = TrackedObjectFactory::new();
 
         let (global_id, init_id) = factory.get_ids();
-        assert_eq!(init_id, 0); // Initializing ID starts at 0 per factory
+        assert_eq!(init_id, 1); // Initializing ID starts at 1 per factory (matches Python/Go)
 
         let (global_id2, init_id2) = factory.get_ids();
-        assert_eq!(init_id2, 1);
-        // Global IDs should be sequential (though not necessarily starting at 0)
+        assert_eq!(init_id2, 2);
+        // Global IDs should be sequential (though not necessarily starting at 1)
         assert_eq!(global_id2, global_id + 1);
     }
 
@@ -329,13 +341,13 @@ mod tests {
     fn test_factory_initializing_vs_permanent_ids() {
         let factory = TrackedObjectFactory::new();
 
-        // Initializing and permanent IDs are independent
-        assert_eq!(factory.get_initializing_id(), 0);
-        assert_eq!(factory.get_permanent_id(), 0);
+        // Initializing and permanent IDs are independent (both start at 1)
         assert_eq!(factory.get_initializing_id(), 1);
         assert_eq!(factory.get_permanent_id(), 1);
+        assert_eq!(factory.get_initializing_id(), 2);
+        assert_eq!(factory.get_permanent_id(), 2);
 
-        // Check counters
+        // Check counters (count of IDs actually issued)
         assert_eq!(factory.initializing_id_count(), 2);
         assert_eq!(factory.permanent_id_count(), 2);
     }
@@ -345,26 +357,26 @@ mod tests {
         let factory = TrackedObjectFactory::new();
 
         // Simulate: create 3 objects, then 2 get promoted, then 2 more created
-        let init1 = factory.get_initializing_id(); // 0
-        let init2 = factory.get_initializing_id(); // 1
-        let init3 = factory.get_initializing_id(); // 2
+        let init1 = factory.get_initializing_id(); // 1
+        let init2 = factory.get_initializing_id(); // 2
+        let init3 = factory.get_initializing_id(); // 3
 
         // Object 1 and 2 get promoted (get permanent IDs)
-        let perm1 = factory.get_permanent_id(); // 0
-        let perm2 = factory.get_permanent_id(); // 1
+        let perm1 = factory.get_permanent_id(); // 1
+        let perm2 = factory.get_permanent_id(); // 2
 
         // Object 3 dies (no permanent ID)
         // Two new objects
-        let init4 = factory.get_initializing_id(); // 3
-        let init5 = factory.get_initializing_id(); // 4
+        let init4 = factory.get_initializing_id(); // 4
+        let init5 = factory.get_initializing_id(); // 5
 
-        assert_eq!(init1, 0);
-        assert_eq!(init2, 1);
-        assert_eq!(init3, 2);
-        assert_eq!(perm1, 0);
-        assert_eq!(perm2, 1);
-        assert_eq!(init4, 3);
-        assert_eq!(init5, 4);
+        assert_eq!(init1, 1);
+        assert_eq!(init2, 2);
+        assert_eq!(init3, 3);
+        assert_eq!(perm1, 1);
+        assert_eq!(perm2, 2);
+        assert_eq!(init4, 4);
+        assert_eq!(init5, 5);
     }
 
     // ===== Concurrent access tests =====

@@ -154,22 +154,20 @@ fn compare_tracked_objects(
 
     // Compare each object (by position in list for now - might need ID matching later)
     for (i, (exp, act)) in expected.iter().zip(actual.iter()).enumerate() {
-        // Compare ID (Python starts at 1, Rust starts at 0 - adjust for offset)
-        let act_id = act.id.map(|id| id + 1);
-        if exp.id != act_id {
+        // Compare ID (Python/Go/Rust all start at 1 now)
+        if exp.id != act.id {
             return Err(format!(
-                "Step {} frame {}: Object {} ID mismatch: expected {:?}, got {:?} (Rust raw: {:?})",
-                step_idx, frame_id, i, exp.id, act_id, act.id
+                "Step {} frame {}: Object {} ID mismatch: expected {:?}, got {:?}",
+                step_idx, frame_id, i, exp.id, act.id
             ));
         }
 
-        // Compare initializing_id (Python starts at 1, Rust starts at 0 - adjust for offset)
-        // Python uses counter++ (returns after increment), Rust uses fetch_add (returns before increment)
-        let act_init_id = act.initializing_id.map(|id| id + 1).unwrap_or(-1);
+        // Compare initializing_id (Python/Go/Rust all start at 1 now)
+        let act_init_id = act.initializing_id.unwrap_or(-1);
         if exp.initializing_id != act_init_id {
             return Err(format!(
-                "Step {} frame {}: Object {} initializing_id mismatch: expected {}, got {:?} (Rust raw: {:?})",
-                step_idx, frame_id, i, exp.initializing_id, act_init_id, act.initializing_id
+                "Step {} frame {}: Object {} initializing_id mismatch: expected {}, got {}",
+                step_idx, frame_id, i, exp.initializing_id, act_init_id
             ));
         }
 

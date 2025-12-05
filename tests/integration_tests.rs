@@ -12,6 +12,11 @@ use norfair_rs::{
     Detection, Tracker, TrackerConfig,
 };
 
+#[cfg(feature = "python")]
+use nalgebra::DMatrix;
+#[cfg(feature = "python")]
+use norfair_rs::distances::{CustomDistance, DistanceFunction};
+
 // =============================================================================
 // Test 1: Complete Tracking Pipeline
 // =============================================================================
@@ -509,5 +514,235 @@ fn test_integration_object_lifecycle() {
         tracker.total_object_count(),
         2,
         "Should have created 2 total objects"
+    );
+}
+
+// =============================================================================
+// Test 7: Custom Distance Function (Python feature only)
+// =============================================================================
+
+#[cfg(feature = "python")]
+#[test]
+fn test_integration_custom_distance_euclidean() {
+    // Create a custom distance function that computes euclidean distance
+    let custom = CustomDistance::new(|objects, candidates| {
+        let n_cands = candidates.len();
+        let n_objs = objects.len();
+        let mut matrix = DMatrix::zeros(n_cands, n_objs);
+
+        for (c, cand) in candidates.iter().enumerate() {
+            for (o, obj) in objects.iter().enumerate() {
+                // Compute euclidean distance between detection and estimate
+                let det_points = &cand.points;
+                let obj_points = &obj.estimate;
+
+                let mut sum_sq = 0.0;
+                for i in 0..det_points.nrows() {
+                    for j in 0..det_points.ncols() {
+                        let diff = det_points[(i, j)] - obj_points[(i, j)];
+                        sum_sq += diff * diff;
+                    }
+                }
+                matrix[(c, o)] = sum_sq.sqrt();
+            }
+        }
+        matrix
+    });
+
+    let mut config = TrackerConfig::new(DistanceFunction::Custom(custom), 50.0);
+    config.hit_counter_max = 10;
+    config.initialization_delay = 2;
+    config.pointwise_hit_counter_max = 4;
+    config.detection_threshold = 0.0;
+    config.past_detections_length = 4;
+
+    let mut tracker = Tracker::new(config).expect("Failed to create tracker with custom distance");
+
+    // Track a stationary object for 10 frames
+    for frame in 0..10 {
+        let det = Detection::from_slice(&[100.0, 100.0], 1, 2).unwrap();
+        let tracked_objects = tracker.update(vec![det], 1, None);
+
+        // After initialization delay, should have 1 object
+        if frame > 2 {
+            assert_eq!(
+                tracked_objects.len(),
+                1,
+                "Custom distance Frame {}: expected 1 object, got {}",
+                frame,
+                tracked_objects.len()
+            );
+        }
+    }
+
+    assert_eq!(
+        tracker.total_object_count(),
+        1,
+        "Custom distance: expected 1 total object"
+    );
+}
+
+#[cfg(feature = "python")]
+#[test]
+fn test_integration_custom_distance_moving_object() {
+    // Custom distance function - simple euclidean
+    let custom = CustomDistance::new(|objects, candidates| {
+        let n_cands = candidates.len();
+        let n_objs = objects.len();
+        let mut matrix = DMatrix::zeros(n_cands, n_objs);
+
+        for (c, cand) in candidates.iter().enumerate() {
+            for (o, obj) in objects.iter().enumerate() {
+                let det_points = &cand.points;
+                let obj_points = &obj.estimate;
+
+                let mut sum_sq = 0.0;
+                for i in 0..det_points.nrows() {
+                    for j in 0..det_points.ncols() {
+                        let diff = det_points[(i, j)] - obj_points[(i, j)];
+                        sum_sq += diff * diff;
+                    }
+                }
+                matrix[(c, o)] = sum_sq.sqrt();
+            }
+        }
+        matrix
+    });
+
+    let mut config = TrackerConfig::new(DistanceFunction::Custom(custom), 100.0);
+    config.hit_counter_max = 5;
+    config.initialization_delay = 0; // Immediate initialization
+    config.pointwise_hit_counter_max = 4;
+    config.detection_threshold = 0.0;
+    config.past_detections_length = 4;
+
+    let mut tracker = Tracker::new(config).expect("Failed to create tracker");
+
+    // Track a moving object
+    let tracked = tracker.update(
+        vec![Detection::from_slice(&[1.0, 1.0], 1, 2).unwrap()],
+        1,
+        None,
+    );
+    assert_eq!(
+        tracked.len(),
+        1,
+        "First detection should create active object"
+    );
+
+    tracker.update(
+        vec![Detection::from_slice(&[1.0, 2.0], 1, 2).unwrap()],
+        1,
+        None,
+    );
+    tracker.update(
+        vec![Detection::from_slice(&[1.0, 3.0], 1, 2).unwrap()],
+        1,
+        None,
+    );
+    let tracked = tracker.update(
+        vec![Detection::from_slice(&[1.0, 4.0], 1, 2).unwrap()],
+        1,
+        None,
+    );
+
+    assert_eq!(tracked.len(), 1, "Should still have 1 tracked object");
+
+    // Verify estimate is reasonable
+    let estimate = &tracked[0].estimate;
+    assert!(
+        (estimate[(0, 0)] - 1.0).abs() < 0.5,
+        "X should be close to 1.0"
+    );
+    assert!(
+        estimate[(0, 1)] > 3.0 && estimate[(0, 1)] <= 4.5,
+        "Y should be between 3 and 4.5"
+    );
+}
+
+#[cfg(feature = "python")]
+#[test]
+fn test_integration_custom_distance_high_threshold_creates_many_objects() {
+    // Custom distance that always returns a very high value
+    // This should cause each detection to create a new object (no matches)
+    let custom = CustomDistance::new(|objects, candidates| {
+        let n_cands = candidates.len();
+        let n_objs = objects.len();
+        // Return very high distances - nothing should match
+        DMatrix::from_element(n_cands, n_objs, 1000.0)
+    });
+
+    let mut config = TrackerConfig::new(DistanceFunction::Custom(custom), 50.0);
+    config.hit_counter_max = 10;
+    config.initialization_delay = 0; // Immediate initialization
+    config.pointwise_hit_counter_max = 4;
+    config.detection_threshold = 0.0;
+    config.past_detections_length = 4;
+
+    let mut tracker = Tracker::new(config).expect("Failed to create tracker");
+
+    // Each detection should create a new object since distance is always > threshold
+    for frame in 0..3 {
+        let det = Detection::from_slice(&[100.0, 100.0], 1, 2).unwrap();
+        let tracked_objects = tracker.update(vec![det], 1, None);
+
+        // Objects are created immediately but old ones die quickly
+        println!(
+            "Frame {}: {} active objects, {} total",
+            frame,
+            tracked_objects.len(),
+            tracker.total_object_count()
+        );
+    }
+
+    // Should have created multiple objects since nothing matched
+    assert!(
+        tracker.total_object_count() >= 2,
+        "Expected at least 2 total objects due to high distance (got {})",
+        tracker.total_object_count()
+    );
+}
+
+#[cfg(feature = "python")]
+#[test]
+fn test_integration_custom_distance_low_threshold_tracks_all() {
+    // Custom distance that always returns 0 (perfect match)
+    let custom = CustomDistance::new(|objects, candidates| {
+        let n_cands = candidates.len();
+        let n_objs = objects.len();
+        DMatrix::zeros(n_cands, n_objs)
+    });
+
+    let mut config = TrackerConfig::new(DistanceFunction::Custom(custom), 50.0);
+    config.hit_counter_max = 10;
+    config.initialization_delay = 0;
+    config.pointwise_hit_counter_max = 4;
+    config.detection_threshold = 0.0;
+    config.past_detections_length = 4;
+
+    let mut tracker = Tracker::new(config).expect("Failed to create tracker");
+
+    // First detection creates object
+    let det1 = Detection::from_slice(&[100.0, 100.0], 1, 2).unwrap();
+    let tracked = tracker.update(vec![det1], 1, None);
+    assert_eq!(tracked.len(), 1);
+
+    // Subsequent detections at completely different positions should match
+    // because custom distance always returns 0
+    for _ in 0..5 {
+        let det = Detection::from_slice(&[500.0, 500.0], 1, 2).unwrap(); // Far away!
+        let tracked = tracker.update(vec![det], 1, None);
+        assert_eq!(
+            tracked.len(),
+            1,
+            "Should still have 1 object (always matches)"
+        );
+    }
+
+    // Only 1 total object should have been created
+    assert_eq!(
+        tracker.total_object_count(),
+        1,
+        "Expected exactly 1 total object"
     );
 }

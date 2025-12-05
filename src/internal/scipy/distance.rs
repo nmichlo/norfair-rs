@@ -13,6 +13,7 @@ use nalgebra::DMatrix;
 ///
 /// # Returns
 /// Distance matrix of shape (n_samples_a x n_samples_b)
+#[inline]
 pub fn cdist(xa: &DMatrix<f64>, xb: &DMatrix<f64>, metric: &str) -> DMatrix<f64> {
     let n_a = xa.nrows();
     let n_b = xb.nrows();

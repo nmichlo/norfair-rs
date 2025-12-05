@@ -90,6 +90,7 @@ pub fn flatten(matrix: &DMatrix<f64>) -> nalgebra::DVector<f64> {
 ///
 /// IMPORTANT: Use this instead of `.iter().collect()` when you need
 /// row-major order (which is most cases when porting from Python/Go).
+#[inline]
 pub fn flatten_row_major(matrix: &DMatrix<f64>) -> Vec<f64> {
     let (nrows, ncols) = matrix.shape();
     let mut result = Vec::with_capacity(nrows * ncols);
@@ -105,6 +106,7 @@ pub fn flatten_row_major(matrix: &DMatrix<f64>) -> Vec<f64> {
 ///
 /// Alias for `flatten_row_major` for clarity in contexts where we're
 /// creating measurement vectors for Kalman filters.
+#[inline]
 pub fn to_row_major_vec(matrix: &DMatrix<f64>) -> Vec<f64> {
     flatten_row_major(matrix)
 }

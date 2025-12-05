@@ -27,6 +27,7 @@ impl VectorizedDistance {
 }
 
 impl Distance for VectorizedDistance {
+    #[inline]
     fn get_distances(
         &self,
         objects: &[&TrackedObject],

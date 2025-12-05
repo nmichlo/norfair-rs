@@ -11,6 +11,13 @@ use crate::camera_motion::CoordinateTransformation;
 /// Global ID counter for unique IDs across all factories.
 static GLOBAL_ID_COUNTER: AtomicI32 = AtomicI32::new(0);
 
+/// Get the next global ID (unique across all trackers/factories).
+/// Uses Relaxed ordering since we only need uniqueness, not memory ordering.
+#[inline]
+pub fn get_next_global_id() -> i32 {
+    GLOBAL_ID_COUNTER.fetch_add(1, Ordering::Relaxed)
+}
+
 /// Factory for creating tracked objects with unique IDs.
 ///
 /// This handles ID management for tracked objects, including:
@@ -35,18 +42,21 @@ impl TrackedObjectFactory {
     }
 
     /// Get the next global ID (unique across all factories).
+    #[inline]
     pub fn get_global_id(&self) -> i32 {
-        GLOBAL_ID_COUNTER.fetch_add(1, Ordering::SeqCst)
+        get_next_global_id()
     }
 
     /// Get the next initializing ID (unique within this factory).
+    #[inline]
     pub fn get_initializing_id(&self) -> i32 {
-        self.initializing_id_counter.fetch_add(1, Ordering::SeqCst)
+        self.initializing_id_counter.fetch_add(1, Ordering::Relaxed)
     }
 
     /// Get the next permanent ID (unique within this factory).
+    #[inline]
     pub fn get_permanent_id(&self) -> i32 {
-        self.permanent_id_counter.fetch_add(1, Ordering::SeqCst)
+        self.permanent_id_counter.fetch_add(1, Ordering::Relaxed)
     }
 
     /// Get both a global ID and initializing ID for a new object.
@@ -60,18 +70,18 @@ impl TrackedObjectFactory {
 
     /// Get the current count of permanent IDs issued.
     pub fn permanent_id_count(&self) -> i32 {
-        self.permanent_id_counter.load(Ordering::SeqCst)
+        self.permanent_id_counter.load(Ordering::Relaxed)
     }
 
     /// Get the current count of initializing IDs issued.
     pub fn initializing_id_count(&self) -> i32 {
-        self.initializing_id_counter.load(Ordering::SeqCst)
+        self.initializing_id_counter.load(Ordering::Relaxed)
     }
 
     /// Reset the global ID counter (for testing only).
     #[cfg(test)]
     pub fn reset_global_counter() {
-        GLOBAL_ID_COUNTER.store(0, Ordering::SeqCst);
+        GLOBAL_ID_COUNTER.store(0, Ordering::Relaxed);
     }
 }
 
@@ -85,8 +95,8 @@ impl Clone for TrackedObjectFactory {
     fn clone(&self) -> Self {
         // Create a new factory with current counter values
         Self {
-            permanent_id_counter: AtomicI32::new(self.permanent_id_counter.load(Ordering::SeqCst)),
-            initializing_id_counter: AtomicI32::new(self.initializing_id_counter.load(Ordering::SeqCst)),
+            permanent_id_counter: AtomicI32::new(self.permanent_id_counter.load(Ordering::Relaxed)),
+            initializing_id_counter: AtomicI32::new(self.initializing_id_counter.load(Ordering::Relaxed)),
         }
     }
 }

@@ -24,6 +24,7 @@ impl ScalarDistance {
 }
 
 impl Distance for ScalarDistance {
+    #[inline]
     fn get_distances(
         &self,
         objects: &[&TrackedObject],

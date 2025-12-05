@@ -6,6 +6,7 @@ use crate::{Detection, TrackedObject};
 /// Frobenius norm distance between detection and tracked object points.
 ///
 /// Computes sqrt(sum((det.points - obj.estimate)^2))
+#[inline]
 pub fn frobenius(detection: &Detection, object: &TrackedObject) -> f64 {
     let diff = &detection.points - &object.estimate;
     diff.iter().map(|x| x * x).sum::<f64>().sqrt()
@@ -14,6 +15,7 @@ pub fn frobenius(detection: &Detection, object: &TrackedObject) -> f64 {
 /// Mean Euclidean distance per point.
 ///
 /// Computes the average L2 distance across all points.
+#[inline]
 pub fn mean_euclidean(detection: &Detection, object: &TrackedObject) -> f64 {
     let n_points = detection.points.nrows();
     if n_points == 0 {
@@ -39,6 +41,7 @@ pub fn mean_euclidean(detection: &Detection, object: &TrackedObject) -> f64 {
 /// Mean Manhattan distance per point.
 ///
 /// Computes the average L1 distance across all points.
+#[inline]
 pub fn mean_manhattan(detection: &Detection, object: &TrackedObject) -> f64 {
     let n_points = detection.points.nrows();
     if n_points == 0 {
@@ -64,6 +67,7 @@ pub fn mean_manhattan(detection: &Detection, object: &TrackedObject) -> f64 {
 ///
 /// Expects boxes in format [[x1, y1, x2, y2]] (min and max corners).
 /// Returns 1 - IoU, so lower is better (perfect match = 0).
+#[inline]
 pub fn iou(candidates: &DMatrix<f64>, objects: &DMatrix<f64>) -> DMatrix<f64> {
     let n_cand = candidates.nrows();
     let n_obj = objects.nrows();

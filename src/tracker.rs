@@ -1,7 +1,6 @@
 //! Main tracker implementation.
 
 use std::collections::VecDeque;
-use std::sync::atomic::{AtomicI32, Ordering};
 use nalgebra::{DMatrix, DVector};
 
 use crate::{Detection, TrackedObject, Error, Result};
@@ -10,9 +9,7 @@ use crate::distances::{DistanceFunction, distance_function_by_name};
 use crate::matching::{match_detections_and_objects, get_unmatched};
 use crate::camera_motion::CoordinateTransformation;
 use crate::internal::numpy::to_row_major_vec;
-
-// Global ID counter for unique IDs across all trackers
-static GLOBAL_ID_COUNTER: AtomicI32 = AtomicI32::new(0);
+use crate::tracked_object::get_next_global_id;
 
 /// Configuration for the tracker.
 #[derive(Clone)]
@@ -345,7 +342,7 @@ impl Tracker {
         period: i32,
         coord_transform: Option<&dyn CoordinateTransformation>,
     ) {
-        let global_id = GLOBAL_ID_COUNTER.fetch_add(1, Ordering::SeqCst);
+        let global_id = get_next_global_id();
         let initializing_id = self.initializing_id_counter;
         self.initializing_id_counter += 1;
 

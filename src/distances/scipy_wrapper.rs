@@ -26,6 +26,7 @@ impl ScipyDistance {
 }
 
 impl Distance for ScipyDistance {
+    #[inline]
     fn get_distances(
         &self,
         objects: &[&TrackedObject],

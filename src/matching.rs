@@ -4,11 +4,13 @@ use nalgebra::DMatrix;
 use crate::{Error, Result};
 
 /// Check if a matrix contains NaN values.
+#[inline]
 pub fn has_nan(matrix: &DMatrix<f64>) -> bool {
     matrix.iter().any(|&x| x.is_nan())
 }
 
 /// Validate a distance matrix (no NaN values allowed).
+#[inline]
 pub fn validate_distance_matrix(matrix: &DMatrix<f64>) -> Result<()> {
     if has_nan(matrix) {
         return Err(Error::DistanceError("Distance matrix contains NaN values".to_string()));
@@ -25,6 +27,7 @@ pub fn validate_distance_matrix(matrix: &DMatrix<f64>) -> Result<()> {
 /// # Returns
 /// Tuple of (matched_det_indices, matched_obj_indices) where entry i indicates
 /// the matched pair. Unmatched detections/objects are not included.
+#[inline]
 pub fn match_detections_and_objects(
     distance_matrix: &DMatrix<f64>,
     threshold: f64,
@@ -38,7 +41,7 @@ pub fn match_detections_and_objects(
 
     // Collect all valid (distance, det_idx, obj_idx) pairs
     // NOTE: Use strict < to match norfair behavior (distance == threshold is NOT a match)
-    let mut pairs: Vec<(f64, usize, usize)> = Vec::new();
+    let mut pairs: Vec<(f64, usize, usize)> = Vec::with_capacity(n_detections * n_objects);
     for i in 0..n_detections {
         for j in 0..n_objects {
             let dist = distance_matrix[(i, j)];
@@ -55,8 +58,9 @@ pub fn match_detections_and_objects(
     let mut used_dets = vec![false; n_detections];
     let mut used_objs = vec![false; n_objects];
 
-    let mut matched_dets = Vec::new();
-    let mut matched_objs = Vec::new();
+    let max_matches = n_detections.min(n_objects);
+    let mut matched_dets = Vec::with_capacity(max_matches);
+    let mut matched_objs = Vec::with_capacity(max_matches);
 
     for (_dist, det_idx, obj_idx) in pairs {
         if used_dets[det_idx] || used_objs[obj_idx] {
@@ -73,6 +77,7 @@ pub fn match_detections_and_objects(
 }
 
 /// Get unmatched indices from a match result.
+#[inline]
 pub fn get_unmatched(total: usize, matched: &[usize]) -> Vec<usize> {
     let mut is_matched = vec![false; total];
     for &idx in matched {

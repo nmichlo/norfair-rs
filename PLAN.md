@@ -59,7 +59,7 @@ SEE: ./PLAN_TESTS.md for detailed checklist
 
 E2E fixture tests verify Rust tracker output matches Python reference:
 - `tests/fixture_tests.rs` - 2 tests (small, medium scenarios)
-- Fixtures generated from Python norfair in `testdata/fixtures/`
+- Fixtures generated from Python norfair in `tests/data/fixtures/`
 - Tolerance: 1e-6 for numerical comparisons
 
 **Bugs fixed during fixture test implementation:**

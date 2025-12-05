@@ -154,8 +154,8 @@ def main():
         print(f"  Steps: {len(fixture['steps'])}")
 
     print("\nDone! Copy fixtures to test directories:")
-    print("  cp fixtures/*.json ../../testdata/fixtures/")
-    print("  cp fixtures/*.json ../../../norfair-go/testdata/fixtures/")
+    print("  cp fixtures/*.json ../../tests/data/fixtures/")
+    print("  cp fixtures/*.json ../../../norfair-go/tests/data/fixtures/")
 
 
 if __name__ == "__main__":

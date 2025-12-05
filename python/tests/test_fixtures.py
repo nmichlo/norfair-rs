@@ -16,18 +16,18 @@ from norfair_rs import Detection, Tracker
 
 
 def find_testdata_dir() -> Path:
-    """Find the testdata/fixtures directory."""
+    """Find the tests/data/fixtures directory."""
     candidates = [
-        Path("testdata/fixtures"),
-        Path("../testdata/fixtures"),
-        Path("../../testdata/fixtures"),
+        Path("tests/data/fixtures"),
+        Path("../tests/data/fixtures"),
+        Path("../../tests/data/fixtures"),
     ]
 
     for candidate in candidates:
         if candidate.exists():
             return candidate
 
-    raise FileNotFoundError("Could not find testdata/fixtures directory")
+    raise FileNotFoundError("Could not find tests/data/fixtures directory")
 
 
 def load_fixture(scenario: str) -> dict:

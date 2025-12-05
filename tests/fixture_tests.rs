@@ -73,9 +73,9 @@ struct TrackedObjectJson {
 fn find_testdata_dir() -> PathBuf {
     // Try various locations relative to where tests run
     let candidates = [
-        PathBuf::from("testdata/fixtures"),
-        PathBuf::from("../testdata/fixtures"),
-        PathBuf::from("../../testdata/fixtures"),
+        PathBuf::from("tests/data/fixtures"),
+        PathBuf::from("../tests/data/fixtures"),
+        PathBuf::from("../../tests/data/fixtures"),
     ];
 
     for candidate in &candidates {
@@ -83,7 +83,7 @@ fn find_testdata_dir() -> PathBuf {
             return candidate.clone();
         }
     }
-    panic!("Could not find testdata/fixtures directory");
+    panic!("Could not find tests/data/fixtures directory");
 }
 
 fn load_fixture(scenario: &str) -> Fixture {

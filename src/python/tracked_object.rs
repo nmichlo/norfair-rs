@@ -1,13 +1,13 @@
 //! Python wrapper for TrackedObject.
 
-use pyo3::prelude::*;
-use pyo3::exceptions::PyValueError;
-use numpy::{PyArray1, PyArray2, IntoPyArray};
-use numpy::ndarray::Array1;
 use nalgebra::DMatrix;
+use numpy::ndarray::Array1;
+use numpy::{IntoPyArray, PyArray1, PyArray2};
+use pyo3::exceptions::PyValueError;
+use pyo3::prelude::*;
 
+use super::detection::{dmatrix_to_numpy, numpy_to_dmatrix, PyDetection};
 use crate::TrackedObject;
-use super::detection::{PyDetection, dmatrix_to_numpy, numpy_to_dmatrix};
 
 /// A tracked object maintained by the tracker.
 ///
@@ -49,7 +49,10 @@ impl PyTrackedObject {
         obj: &TrackedObject,
         coord_transform: Option<Py<PyAny>>,
     ) -> Self {
-        let last_detection = obj.last_detection.as_ref().map(|d| PyDetection::from_detection(d.clone()));
+        let last_detection = obj
+            .last_detection
+            .as_ref()
+            .map(|d| PyDetection::from_detection(d.clone()));
         let past_detections = obj
             .past_detections
             .iter()
@@ -139,7 +142,11 @@ impl PyTrackedObject {
     ///     If no coordinate transformation was provided to the tracker,
     ///     both absolute=True and absolute=False return the same raw coordinates.
     #[pyo3(signature = (absolute=false))]
-    fn get_estimate<'py>(&self, py: Python<'py>, absolute: bool) -> PyResult<Bound<'py, PyArray2<f64>>> {
+    fn get_estimate<'py>(
+        &self,
+        py: Python<'py>,
+        absolute: bool,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
         let estimate_np = dmatrix_to_numpy(py, &self.estimate);
 
         if let Some(ref transform) = self.coord_transform {
@@ -261,7 +268,10 @@ impl PyTrackedObject {
         dict.set_item("age", self.age)?;
         dict.set_item("hit_counter", self.hit_counter)?;
         dict.set_item("estimate", dmatrix_to_numpy(py, &self.estimate))?;
-        dict.set_item("estimate_velocity", dmatrix_to_numpy(py, &self.estimate_velocity))?;
+        dict.set_item(
+            "estimate_velocity",
+            dmatrix_to_numpy(py, &self.estimate_velocity),
+        )?;
         dict.set_item("live_points", self.live_points(py))?;
         dict.set_item("is_initializing", self.is_initializing)?;
         dict.set_item("label", self.label.clone())?;

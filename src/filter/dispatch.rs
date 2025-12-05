@@ -4,20 +4,23 @@
 //! filter types and dispatch without vtable lookups, improving performance
 //! for hot-path code.
 
-use nalgebra::{DMatrix, DVector};
-use super::traits::{Filter, FilterFactory};
-use super::optimized::{OptimizedKalmanFilter, OptimizedKalmanFilterFactory};
 use super::filterpy::{FilterPyKalmanFilter, FilterPyKalmanFilterFactory};
 use super::no_filter::{NoFilter, NoFilterFactory};
+use super::optimized::{OptimizedKalmanFilter, OptimizedKalmanFilterFactory};
+use super::traits::{Filter, FilterFactory};
+use nalgebra::{DMatrix, DVector};
 
 /// Enum-based filter for static dispatch.
 ///
 /// This avoids `Box<dyn Filter>` vtable overhead by using an enum
 /// with inline implementations.
+///
+/// Note: `FilterPyKalmanFilter` is boxed because it contains large matrices
+/// that would make the enum variant size uneven (clippy::large_enum_variant).
 #[derive(Clone, Debug)]
 pub enum FilterEnum {
     Optimized(OptimizedKalmanFilter),
-    FilterPy(FilterPyKalmanFilter),
+    FilterPy(Box<FilterPyKalmanFilter>),
     None(NoFilter),
 }
 
@@ -156,27 +159,18 @@ impl FilterFactoryEnum {
     #[inline(always)]
     pub fn create(&self, initial_detection: &DMatrix<f64>) -> FilterEnum {
         match self {
-            FilterFactoryEnum::Optimized(f) => {
-                FilterEnum::Optimized(OptimizedKalmanFilter::new(
-                    initial_detection,
-                    f.r(),
-                    f.q(),
-                    f.pos_variance(),
-                    f.pos_vel_covariance(),
-                    f.vel_variance(),
-                ))
-            }
-            FilterFactoryEnum::FilterPy(f) => {
-                FilterEnum::FilterPy(FilterPyKalmanFilter::new(
-                    initial_detection,
-                    f.r(),
-                    f.q(),
-                    f.p(),
-                ))
-            }
-            FilterFactoryEnum::None(_) => {
-                FilterEnum::None(NoFilter::new(initial_detection))
-            }
+            FilterFactoryEnum::Optimized(f) => FilterEnum::Optimized(OptimizedKalmanFilter::new(
+                initial_detection,
+                f.r(),
+                f.q(),
+                f.pos_variance(),
+                f.pos_vel_covariance(),
+                f.vel_variance(),
+            )),
+            FilterFactoryEnum::FilterPy(f) => FilterEnum::FilterPy(Box::new(
+                FilterPyKalmanFilter::new(initial_detection, f.r(), f.q(), f.p()),
+            )),
+            FilterFactoryEnum::None(_) => FilterEnum::None(NoFilter::new(initial_detection)),
         }
     }
 }

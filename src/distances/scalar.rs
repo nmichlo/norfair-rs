@@ -1,8 +1,8 @@
 //! Scalar distance wrapper for per-pair distance functions.
 
-use nalgebra::DMatrix;
-use crate::{Detection, TrackedObject};
 use super::traits::Distance;
+use crate::{Detection, TrackedObject};
+use nalgebra::DMatrix;
 
 /// Scalar distance function type.
 pub type ScalarDistanceFn = fn(&Detection, &TrackedObject) -> f64;
@@ -25,11 +25,7 @@ impl ScalarDistance {
 
 impl Distance for ScalarDistance {
     #[inline]
-    fn get_distances(
-        &self,
-        objects: &[&TrackedObject],
-        candidates: &[&Detection],
-    ) -> DMatrix<f64> {
+    fn get_distances(&self, objects: &[&TrackedObject], candidates: &[&Detection]) -> DMatrix<f64> {
         let n_candidates = candidates.len();
         let n_objects = objects.len();
 
@@ -38,10 +34,11 @@ impl Distance for ScalarDistance {
         for (i, candidate) in candidates.iter().enumerate() {
             for (j, object) in objects.iter().enumerate() {
                 // Skip if labels don't match
-                if candidate.label.is_some() && object.label.is_some() {
-                    if candidate.label != object.label {
-                        continue;
-                    }
+                if candidate.label.is_some()
+                    && object.label.is_some()
+                    && candidate.label != object.label
+                {
+                    continue;
                 }
 
                 result[(i, j)] = (self.distance_fn)(candidate, object);

@@ -1,9 +1,9 @@
 //! Vectorized distance wrapper for batch distance functions.
 
-use nalgebra::DMatrix;
-use crate::{Detection, TrackedObject};
-use crate::internal::numpy::flatten_row_major;
 use super::traits::Distance;
+use crate::internal::numpy::flatten_row_major;
+use crate::{Detection, TrackedObject};
+use nalgebra::DMatrix;
 
 /// Vectorized distance function type.
 ///
@@ -28,11 +28,7 @@ impl VectorizedDistance {
 
 impl Distance for VectorizedDistance {
     #[inline]
-    fn get_distances(
-        &self,
-        objects: &[&TrackedObject],
-        candidates: &[&Detection],
-    ) -> DMatrix<f64> {
+    fn get_distances(&self, objects: &[&TrackedObject], candidates: &[&Detection]) -> DMatrix<f64> {
         let n_candidates = candidates.len();
         let n_objects = objects.len();
 
@@ -67,10 +63,11 @@ impl Distance for VectorizedDistance {
         // Apply label filtering (set to infinity if labels don't match)
         for (i, candidate) in candidates.iter().enumerate() {
             for (j, object) in objects.iter().enumerate() {
-                if candidate.label.is_some() && object.label.is_some() {
-                    if candidate.label != object.label {
-                        result[(i, j)] = f64::INFINITY;
-                    }
+                if candidate.label.is_some()
+                    && object.label.is_some()
+                    && candidate.label != object.label
+                {
+                    result[(i, j)] = f64::INFINITY;
                 }
             }
         }

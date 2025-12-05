@@ -1,10 +1,10 @@
 //! MOTChallenge predictions file writer.
 
+use super::InformationFile;
+use crate::{Error, Result, TrackedObject};
 use std::fs::{self, File};
 use std::io::{BufWriter, Write};
 use std::path::Path;
-use crate::{Error, Result, TrackedObject};
-use super::InformationFile;
 
 /// Writer for tracking predictions in MOTChallenge format.
 ///
@@ -112,7 +112,7 @@ impl PredictionsTextFile {
                     "{},{},{:.2},{:.2},{:.2},{:.2},-1,-1,-1,-1",
                     frame, id, bb_left, bb_top, bb_width, bb_height
                 )
-                .map_err(|e| Error::IoError(e))?;
+                .map_err(Error::IoError)?;
             }
         }
 
@@ -122,7 +122,7 @@ impl PredictionsTextFile {
 
     /// Flush the writer.
     pub fn flush(&mut self) -> Result<()> {
-        self.writer.flush().map_err(|e| Error::IoError(e))
+        self.writer.flush().map_err(Error::IoError)
     }
 }
 

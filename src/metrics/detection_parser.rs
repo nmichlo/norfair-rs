@@ -1,10 +1,10 @@
 //! Detection file parser for MOTChallenge format.
 
+use crate::{Detection, Error, Result};
+use nalgebra::DMatrix;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
-use nalgebra::DMatrix;
-use crate::{Detection, Error, Result};
 
 /// Parser for MOTChallenge detection files.
 ///
@@ -33,7 +33,7 @@ impl DetectionFileParser {
         let mut detections: Vec<Vec<Detection>> = vec![Vec::new(); num_frames];
 
         for line_result in reader.lines() {
-            let line = line_result.map_err(|e| Error::IoError(e))?;
+            let line = line_result.map_err(Error::IoError)?;
             let parts: Vec<&str> = line.split(',').collect();
 
             if parts.len() < 7 {
@@ -53,7 +53,8 @@ impl DetectionFileParser {
             let bb_height: f64 = parts[5].trim().parse().unwrap_or(0.0);
 
             // Parse confidence (optional, default to 1.0)
-            let conf: f64 = parts.get(6)
+            let conf: f64 = parts
+                .get(6)
                 .and_then(|s| s.trim().parse().ok())
                 .unwrap_or(1.0);
 
@@ -64,12 +65,8 @@ impl DetectionFileParser {
             let y2 = bb_top + bb_height;
 
             let points = DMatrix::from_row_slice(2, 2, &[x1, y1, x2, y2]);
-            let detection = Detection::with_config(
-                points,
-                Some(vec![conf, conf]),
-                None,
-                None,
-            ).unwrap_or_default();
+            let detection = Detection::with_config(points, Some(vec![conf, conf]), None, None)
+                .unwrap_or_default();
 
             detections[frame - 1].push(detection);
         }

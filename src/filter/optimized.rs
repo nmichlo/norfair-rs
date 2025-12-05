@@ -3,8 +3,8 @@
 //! This filter tracks variance per dimension rather than full covariance matrices,
 //! making it faster for multi-point tracking.
 
-use nalgebra::{DMatrix, DVector};
 use super::traits::{Filter, FilterFactory};
+use nalgebra::{DMatrix, DVector};
 
 /// Optimized Kalman filter with simplified covariance.
 ///
@@ -159,9 +159,9 @@ impl Filter for OptimizedKalmanFilter {
                 vel_var_plus_pos_vel_cov_over_added_variances[i] * added_variances_or_kalman_r[i];
             self.vel_variance[i] += self.q
                 - diagonal[i]
-                * vel_var_plus_pos_vel_cov_over_added_variances[i]
-                * vel_var_plus_pos_vel_cov_over_added_variances[i]
-                * added_variances[i];
+                    * vel_var_plus_pos_vel_cov_over_added_variances[i]
+                    * vel_var_plus_pos_vel_cov_over_added_variances[i]
+                    * added_variances[i];
         }
     }
 

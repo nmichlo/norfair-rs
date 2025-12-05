@@ -1,15 +1,15 @@
 //! Main tracker implementation.
 
-use std::collections::VecDeque;
 use nalgebra::{DMatrix, DVector};
+use std::collections::VecDeque;
 
-use crate::{Detection, TrackedObject, Error, Result};
-use crate::filter::FilterFactoryEnum;
-use crate::distances::{DistanceFunction, distance_function_by_name};
-use crate::matching::{match_detections_and_objects, get_unmatched};
 use crate::camera_motion::CoordinateTransformation;
+use crate::distances::{distance_function_by_name, DistanceFunction};
+use crate::filter::FilterFactoryEnum;
 use crate::internal::numpy::to_row_major_vec;
+use crate::matching::{get_unmatched, match_detections_and_objects};
 use crate::tracked_object::get_next_global_id;
+use crate::{Detection, Error, Result, TrackedObject};
 
 /// Configuration for the tracker.
 #[derive(Clone)]
@@ -171,8 +171,10 @@ impl Tracker {
             let state = obj.filter.get_state_vector();
             let dim_z = obj.filter.dim_z();
             if state.len() >= dim_z * 2 {
-                let velocity_flat: Vec<f64> = state.iter().skip(dim_z).take(dim_z).cloned().collect();
-                obj.estimate_velocity = DMatrix::from_vec(obj.num_points, obj.dim_points, velocity_flat);
+                let velocity_flat: Vec<f64> =
+                    state.iter().skip(dim_z).take(dim_z).cloned().collect();
+                obj.estimate_velocity =
+                    DMatrix::from_vec(obj.num_points, obj.dim_points, velocity_flat);
             }
 
             // Store coordinate transform for later use
@@ -189,7 +191,8 @@ impl Tracker {
             .partition(|(_, obj)| !obj.is_initializing);
 
         let initialized_indices: Vec<_> = initialized_indices.into_iter().map(|(i, _)| i).collect();
-        let initializing_indices: Vec<_> = initializing_indices.into_iter().map(|(i, _)| i).collect();
+        let initializing_indices: Vec<_> =
+            initializing_indices.into_iter().map(|(i, _)| i).collect();
 
         // Match initialized objects first
         let det_refs: Vec<&Detection> = detections.iter().collect();
@@ -199,7 +202,9 @@ impl Tracker {
             .collect();
 
         let distance_matrix = if !init_obj_refs.is_empty() && !det_refs.is_empty() {
-            self.config.distance_function.get_distances(&init_obj_refs, &det_refs)
+            self.config
+                .distance_function
+                .get_distances(&init_obj_refs, &det_refs)
         } else {
             DMatrix::zeros(det_refs.len(), init_obj_refs.len())
         };
@@ -210,7 +215,12 @@ impl Tracker {
         // Update matched initialized objects
         for (&det_idx, &obj_local_idx) in matched_dets.iter().zip(matched_objs.iter()) {
             let obj_idx = initialized_indices[obj_local_idx];
-            self.hit_object(obj_idx, &detections[det_idx], period, distance_matrix[(det_idx, obj_local_idx)]);
+            self.hit_object(
+                obj_idx,
+                &detections[det_idx],
+                period,
+                distance_matrix[(det_idx, obj_local_idx)],
+            );
         }
 
         // Get unmatched detections
@@ -227,7 +237,9 @@ impl Tracker {
             .collect();
 
         let init_distance_matrix = if !init_obj_refs.is_empty() && !unmatched_det_refs.is_empty() {
-            self.config.distance_function.get_distances(&init_obj_refs, &unmatched_det_refs)
+            self.config
+                .distance_function
+                .get_distances(&init_obj_refs, &unmatched_det_refs)
         } else {
             DMatrix::zeros(unmatched_det_refs.len(), init_obj_refs.len())
         };
@@ -236,17 +248,25 @@ impl Tracker {
             match_detections_and_objects(&init_distance_matrix, self.config.distance_threshold);
 
         // Update matched initializing objects
-        for (&local_det_idx, &obj_local_idx) in init_matched_dets.iter().zip(init_matched_objs.iter()) {
+        for (&local_det_idx, &obj_local_idx) in
+            init_matched_dets.iter().zip(init_matched_objs.iter())
+        {
             let det_idx = unmatched_det_indices[local_det_idx];
             let obj_idx = initializing_indices[obj_local_idx];
-            self.hit_object(obj_idx, &detections[det_idx], period, init_distance_matrix[(local_det_idx, obj_local_idx)]);
+            self.hit_object(
+                obj_idx,
+                &detections[det_idx],
+                period,
+                init_distance_matrix[(local_det_idx, obj_local_idx)],
+            );
         }
 
         // Create new objects for remaining unmatched detections
-        let still_unmatched: Vec<_> = get_unmatched(unmatched_det_indices.len(), &init_matched_dets)
-            .into_iter()
-            .map(|i| unmatched_det_indices[i])
-            .collect();
+        let still_unmatched: Vec<_> =
+            get_unmatched(unmatched_det_indices.len(), &init_matched_dets)
+                .into_iter()
+                .map(|i| unmatched_det_indices[i])
+                .collect();
 
         for det_idx in still_unmatched {
             self.create_object(&detections[det_idx], period, coord_transform);
@@ -350,14 +370,20 @@ impl Tracker {
         let dim_points = detection.num_dims();
 
         // Create filter (use enum-based factory for static dispatch)
-        let filter = self.config.filter_factory.create(detection.get_absolute_points());
+        let filter = self
+            .config
+            .filter_factory
+            .create(detection.get_absolute_points());
 
         // Initialize point hit counters
         let point_hit_counter = vec![period.min(self.config.pointwise_hit_counter_max); num_points];
 
         // Initialize detected_at_least_once_points based on detection scores
         let detected_at_least_once_points = if let Some(ref scores) = detection.scores {
-            scores.iter().map(|&s| s > self.config.detection_threshold).collect()
+            scores
+                .iter()
+                .map(|&s| s > self.config.detection_threshold)
+                .collect()
         } else {
             vec![true; num_points]
         };
@@ -397,13 +423,22 @@ impl Tracker {
     }
 
     // Internal: build observation matrix for partial observations
-    fn build_observation_matrix_impl(&self, obj: &TrackedObject, detection: &Detection) -> Option<DMatrix<f64>> {
+    fn build_observation_matrix_impl(
+        &self,
+        obj: &TrackedObject,
+        detection: &Detection,
+    ) -> Option<DMatrix<f64>> {
         let dim_z = obj.filter.dim_z();
         let dim_x = obj.filter.dim_x();
 
         // Check if any points should be masked
         let scores = detection.scores.as_ref();
-        let needs_mask = scores.map(|s| s.iter().any(|&score| score <= self.config.detection_threshold)).unwrap_or(false);
+        let needs_mask = scores
+            .map(|s| {
+                s.iter()
+                    .any(|&score| score <= self.config.detection_threshold)
+            })
+            .unwrap_or(false);
 
         if !needs_mask {
             return None;
@@ -473,7 +508,10 @@ mod tests {
         config.hit_counter_max = 15;
         config.initialization_delay = -2; // invalid negative value (not sentinel -1)
 
-        assert!(Tracker::new(config).is_err(), "Expected error for negative initialization_delay");
+        assert!(
+            Tracker::new(config).is_err(),
+            "Expected error for negative initialization_delay"
+        );
     }
 
     /// Ported from Go: TestTracker_InvalidInitializationDelay (second case)
@@ -484,7 +522,10 @@ mod tests {
         config.hit_counter_max = 15;
         config.initialization_delay = 15; // equal to hit_counter_max (invalid)
 
-        assert!(Tracker::new(config).is_err(), "Expected error for initialization_delay >= hit_counter_max");
+        assert!(
+            Tracker::new(config).is_err(),
+            "Expected error for initialization_delay >= hit_counter_max"
+        );
     }
 
     /// Ported from Go: TestTracker_SimpleUpdate
@@ -507,17 +548,34 @@ mod tests {
         assert_eq!(active.len(), 0, "Expected 0 active objects (initializing)");
 
         // Should have 1 tracked object total
-        assert_eq!(tracker.tracked_objects.len(), 1, "Expected 1 tracked object");
+        assert_eq!(
+            tracker.tracked_objects.len(),
+            1,
+            "Expected 1 tracked object"
+        );
 
         // Total count should be 0 (object hasn't gotten permanent ID yet)
-        assert_eq!(tracker.total_object_count(), 0, "Expected total count 0 (still initializing)");
+        assert_eq!(
+            tracker.total_object_count(),
+            0,
+            "Expected total count 0 (still initializing)"
+        );
 
         // Object should be initializing
-        assert!(tracker.tracked_objects[0].is_initializing, "Expected object to be initializing");
+        assert!(
+            tracker.tracked_objects[0].is_initializing,
+            "Expected object to be initializing"
+        );
 
         // Object should have initializing ID but not permanent ID
-        assert!(tracker.tracked_objects[0].initializing_id.is_some(), "Expected initializing ID to be set");
-        assert!(tracker.tracked_objects[0].id.is_none(), "Expected permanent ID to be nil (still initializing)");
+        assert!(
+            tracker.tracked_objects[0].initializing_id.is_some(),
+            "Expected initializing ID to be set"
+        );
+        assert!(
+            tracker.tracked_objects[0].id.is_none(),
+            "Expected permanent ID to be nil (still initializing)"
+        );
     }
 
     /// Ported from Go: TestTracker_UpdateEmptyDetections
@@ -572,11 +630,7 @@ mod tests {
     #[test]
     fn test_detection_creation_2d() {
         // Test valid 2D points
-        let det = Detection::from_slice(&[
-            1.0, 2.0,
-            3.0, 4.0,
-            5.0, 6.0,
-        ], 3, 2).unwrap();
+        let det = Detection::from_slice(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0], 3, 2).unwrap();
 
         // Verify points shape
         assert_eq!(det.points.nrows(), 3, "Expected 3 rows");
@@ -587,10 +641,7 @@ mod tests {
     #[test]
     fn test_detection_creation_3d() {
         // Test valid 3D points
-        let det = Detection::from_slice(&[
-            1.0, 2.0, 3.0,
-            4.0, 5.0, 6.0,
-        ], 2, 3).unwrap();
+        let det = Detection::from_slice(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0], 2, 3).unwrap();
 
         // Verify points shape
         assert_eq!(det.points.nrows(), 2, "Expected 2 rows");
@@ -610,10 +661,7 @@ mod tests {
         let mut tracker = Tracker::new(config).unwrap();
 
         // Create detection with 2 points
-        let det = Detection::from_slice(&[
-            10.0, 20.0,
-            30.0, 40.0,
-        ], 2, 2).unwrap();
+        let det = Detection::from_slice(&[10.0, 20.0, 30.0, 40.0], 2, 2).unwrap();
 
         // Update tracker to create object
         tracker.update(vec![det], 1, None);
@@ -627,8 +675,14 @@ mod tests {
         assert_eq!(obj.dim_points, 2, "Expected 2D points");
         assert_eq!(obj.hit_counter, 1, "Expected hit counter 1");
         assert!(obj.is_initializing, "Expected object to be initializing");
-        assert!(obj.initializing_id.is_some(), "Expected initializing ID to be set");
-        assert!(obj.id.is_none(), "Expected permanent ID to be nil (still initializing)");
+        assert!(
+            obj.initializing_id.is_some(),
+            "Expected initializing ID to be set"
+        );
+        assert!(
+            obj.id.is_none(),
+            "Expected permanent ID to be nil (still initializing)"
+        );
     }
 
     // ===== Camera Motion Tests =====
@@ -689,7 +743,10 @@ mod tests {
         // Should have 1 active object immediately
         assert_eq!(active.len(), 1, "Expected 1 active object with delay=0");
         assert!(active[0].id.is_some(), "Expected permanent ID with delay=0");
-        assert!(!active[0].is_initializing, "Should not be initializing with delay=0");
+        assert!(
+            !active[0].is_initializing,
+            "Should not be initializing with delay=0"
+        );
 
         // Total count should be 1
         assert_eq!(tracker.total_object_count(), 1);
@@ -764,8 +821,12 @@ mod tests {
         for _ in 0..5 {
             let active = tracker.update(vec![det.clone()], 1, None);
             assert_eq!(active.len(), 1);
-            assert!(active[0].hit_counter <= counter_max,
-                "Hit counter should be capped at {}, got {}", counter_max, active[0].hit_counter);
+            assert!(
+                active[0].hit_counter <= counter_max,
+                "Hit counter should be capped at {}, got {}",
+                counter_max,
+                active[0].hit_counter
+            );
         }
 
         // Now update without detections - hit_counter should decrease
@@ -773,15 +834,21 @@ mod tests {
         for _ in 0..counter_max {
             let active = tracker.update(vec![], 1, None);
             if active.len() == 1 {
-                assert!(active[0].hit_counter < prev_counter,
-                    "Hit counter should decrease without detections");
+                assert!(
+                    active[0].hit_counter < prev_counter,
+                    "Hit counter should decrease without detections"
+                );
                 prev_counter = active[0].hit_counter;
             }
         }
 
         // Object should disappear when hit_counter reaches 0
         let active = tracker.update(vec![], 1, None);
-        assert_eq!(active.len(), 0, "Object should disappear when hit_counter reaches 0");
+        assert_eq!(
+            active.len(),
+            0,
+            "Object should disappear when hit_counter reaches 0"
+        );
     }
 
     /// Ported from Python: test_moving
@@ -796,22 +863,48 @@ mod tests {
 
         // Update with moving detections along y-axis
         // y: 1 -> 2 -> 3 -> 4
-        let active = tracker.update(vec![Detection::from_slice(&[1.0, 1.0], 1, 2).unwrap()], 1, None);
-        assert_eq!(active.len(), 1, "First detection should create active object");
+        let active = tracker.update(
+            vec![Detection::from_slice(&[1.0, 1.0], 1, 2).unwrap()],
+            1,
+            None,
+        );
+        assert_eq!(
+            active.len(),
+            1,
+            "First detection should create active object"
+        );
 
-        tracker.update(vec![Detection::from_slice(&[1.0, 2.0], 1, 2).unwrap()], 1, None);
-        tracker.update(vec![Detection::from_slice(&[1.0, 3.0], 1, 2).unwrap()], 1, None);
-        let active = tracker.update(vec![Detection::from_slice(&[1.0, 4.0], 1, 2).unwrap()], 1, None);
+        tracker.update(
+            vec![Detection::from_slice(&[1.0, 2.0], 1, 2).unwrap()],
+            1,
+            None,
+        );
+        tracker.update(
+            vec![Detection::from_slice(&[1.0, 3.0], 1, 2).unwrap()],
+            1,
+            None,
+        );
+        let active = tracker.update(
+            vec![Detection::from_slice(&[1.0, 4.0], 1, 2).unwrap()],
+            1,
+            None,
+        );
 
         assert_eq!(active.len(), 1, "Expected 1 active object");
 
         // Check that estimated position makes sense
         // x should be close to 1, y should be between 3 and 4 (filter smoothing)
         let estimate = &active[0].estimate;
-        assert!((estimate[(0, 0)] - 1.0).abs() < 0.5,
-            "X should be close to 1.0, got {}", estimate[(0, 0)]);
-        assert!(estimate[(0, 1)] > 3.0 && estimate[(0, 1)] <= 4.5,
-            "Y should be between 3 and 4.5, got {}", estimate[(0, 1)]);
+        assert!(
+            (estimate[(0, 0)] - 1.0).abs() < 0.5,
+            "X should be close to 1.0, got {}",
+            estimate[(0, 0)]
+        );
+        assert!(
+            estimate[(0, 1)] > 3.0 && estimate[(0, 1)] <= 4.5,
+            "Y should be between 3 and 4.5, got {}",
+            estimate[(0, 1)]
+        );
     }
 
     /// Ported from Python: test_distance_t
@@ -825,19 +918,34 @@ mod tests {
         let mut tracker = Tracker::new(config).unwrap();
 
         // First detection creates an object at (1.0, 1.0)
-        let active = tracker.update(vec![Detection::from_slice(&[1.0, 1.0], 1, 2).unwrap()], 1, None);
+        let active = tracker.update(
+            vec![Detection::from_slice(&[1.0, 1.0], 1, 2).unwrap()],
+            1,
+            None,
+        );
         assert_eq!(active.len(), 1, "First detection should create object");
 
         // Second detection at (1.0, 2.0) is distance 1.0 away, which > threshold 0.5
         // So it should create a NEW object, not match the existing one
         // Each update without matching causes existing objects to decay
-        let active = tracker.update(vec![Detection::from_slice(&[1.0, 2.0], 1, 2).unwrap()], 1, None);
+        let active = tracker.update(
+            vec![Detection::from_slice(&[1.0, 2.0], 1, 2).unwrap()],
+            1,
+            None,
+        );
         // We should have 2 objects now (first one decaying, second new)
         assert!(active.len() >= 1, "Should have at least 1 object");
 
         // A closer point (0.3 away) should match
-        let active = tracker.update(vec![Detection::from_slice(&[1.0, 2.3], 1, 2).unwrap()], 1, None);
-        assert!(active.len() >= 1, "Expected match when distance < threshold");
+        let active = tracker.update(
+            vec![Detection::from_slice(&[1.0, 2.3], 1, 2).unwrap()],
+            1,
+            None,
+        );
+        assert!(
+            active.len() >= 1,
+            "Expected match when distance < threshold"
+        );
     }
 
     /// Ported from Python: test_1d_points
@@ -884,8 +992,16 @@ mod tests {
         for _ in 0..delay {
             let active = tracker.update(vec![det1.clone()], 1, None);
             assert_eq!(active.len(), 0);
-            assert_eq!(tracker.total_object_count(), 0, "Total count should be 0 during init");
-            assert_eq!(tracker.current_object_count(), 0, "Current count should be 0 during init");
+            assert_eq!(
+                tracker.total_object_count(),
+                0,
+                "Total count should be 0 during init"
+            );
+            assert_eq!(
+                tracker.current_object_count(),
+                0,
+                "Current count should be 0 during init"
+            );
         }
 
         // After delay, object becomes active
@@ -906,8 +1022,16 @@ mod tests {
         // Object dies
         let active = tracker.update(vec![], 1, None);
         assert_eq!(active.len(), 0);
-        assert_eq!(tracker.total_object_count(), 1, "Total should stay 1 after object dies");
-        assert_eq!(tracker.current_object_count(), 0, "Current should be 0 after object dies");
+        assert_eq!(
+            tracker.total_object_count(),
+            1,
+            "Total should stay 1 after object dies"
+        );
+        assert_eq!(
+            tracker.current_object_count(),
+            0,
+            "Current should be 0 after object dies"
+        );
 
         // Add two new objects (far apart so they don't match each other)
         let det2 = Detection::from_slice(&[100.0, 100.0], 1, 2).unwrap();
@@ -917,14 +1041,22 @@ mod tests {
         for _ in 0..delay {
             let active = tracker.update(vec![det2.clone(), det3.clone()], 1, None);
             assert_eq!(active.len(), 0);
-            assert_eq!(tracker.total_object_count(), 1, "Total should still be 1 during init");
+            assert_eq!(
+                tracker.total_object_count(),
+                1,
+                "Total should still be 1 during init"
+            );
             assert_eq!(tracker.current_object_count(), 0);
         }
 
         // After delay, new objects become active
         let active = tracker.update(vec![det2, det3], 1, None);
         assert_eq!(active.len(), 2);
-        assert_eq!(tracker.total_object_count(), 3, "Total should be 3 (1 dead + 2 new)");
+        assert_eq!(
+            tracker.total_object_count(),
+            3,
+            "Total should be 3 (1 dead + 2 new)"
+        );
         assert_eq!(tracker.current_object_count(), 2);
     }
 

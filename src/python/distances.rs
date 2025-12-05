@@ -1,19 +1,16 @@
 //! Python wrappers for distance functions.
 
-use pyo3::prelude::*;
-use pyo3::exceptions::PyValueError;
-use numpy::PyArray2;
 use nalgebra::DMatrix;
+use numpy::PyArray2;
+use pyo3::exceptions::PyValueError;
+use pyo3::prelude::*;
 
 use crate::distances::{
-    Distance,
-    distance_by_name as rust_distance_by_name,
-    try_distance_by_name,
-    iou as rust_iou,
+    distance_by_name as rust_distance_by_name, iou as rust_iou, try_distance_by_name, Distance,
 };
 use crate::{Detection, TrackedObject};
 
-use super::detection::{PyDetection, numpy_to_dmatrix, dmatrix_to_numpy};
+use super::detection::{dmatrix_to_numpy, numpy_to_dmatrix, PyDetection};
 use super::tracked_object::PyTrackedObject;
 
 /// Enum to hold different distance implementations
@@ -35,9 +32,7 @@ impl PyDistanceEnum {
         candidates: &[&Detection],
     ) -> PyResult<DMatrix<f64>> {
         match self {
-            PyDistanceEnum::Builtin(dist) => {
-                Ok(dist.get_distances(objects, candidates))
-            }
+            PyDistanceEnum::Builtin(dist) => Ok(dist.get_distances(objects, candidates)),
             PyDistanceEnum::PyScalar(func) => {
                 // Call Python function for each pair
                 let n_candidates = candidates.len();
@@ -49,9 +44,7 @@ impl PyDistanceEnum {
                         let py_det = PyDetection::from_detection((*cand).clone());
                         let py_obj = PyTrackedObject::from_tracked_object(obj);
 
-                        let distance: f64 = func
-                            .call1(py, (py_det, py_obj))?
-                            .extract(py)?;
+                        let distance: f64 = func.call1(py, (py_det, py_obj))?.extract(py)?;
                         result[(i, j)] = distance;
                     }
                 }
@@ -191,7 +184,10 @@ impl PyVectorizedDistance {
 #[pyfunction]
 pub fn get_distance_by_name(name: &str) -> PyResult<PyBuiltinDistance> {
     try_distance_by_name(name)
-        .map(|d| PyBuiltinDistance { inner: d, name: name.to_string() })
+        .map(|d| PyBuiltinDistance {
+            inner: d,
+            name: name.to_string(),
+        })
         .map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
@@ -250,7 +246,7 @@ impl PyDistanceFunctionWrapper {
                 // Vectorized: expects (candidates, objects) arrays
                 if args.len() != 2 {
                     return Err(PyValueError::new_err(
-                        "iou distance function expects 2 arguments: (candidates, objects)"
+                        "iou distance function expects 2 arguments: (candidates, objects)",
                     ));
                 }
                 let candidates = args.get_item(0)?;
@@ -333,14 +329,10 @@ impl PyDistanceFunctionWrapper {
 /// - PyScalarDistance objects (Python callables wrapped)
 /// - PyVectorizedDistance objects (Python callables wrapped)
 /// - Raw Python callables (auto-wrapped as ScalarDistance)
-pub fn extract_distance(
-    py: Python<'_>,
-    obj: &Bound<'_, PyAny>,
-) -> PyResult<PyDistanceEnum> {
+pub fn extract_distance(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<PyDistanceEnum> {
     // Try string first
     if let Ok(name) = obj.extract::<String>() {
-        let dist = try_distance_by_name(&name)
-            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let dist = try_distance_by_name(&name).map_err(|e| PyValueError::new_err(e.to_string()))?;
         return Ok(PyDistanceEnum::Builtin(dist));
     }
 

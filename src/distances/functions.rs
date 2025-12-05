@@ -1,7 +1,7 @@
 //! Built-in distance functions.
 
-use nalgebra::DMatrix;
 use crate::{Detection, TrackedObject};
+use nalgebra::DMatrix;
 
 /// Frobenius norm distance between detection and tracked object points.
 ///
@@ -227,7 +227,12 @@ mod tests {
         }
     }
 
-    fn make_detection_with_scores(points: &[f64], n_rows: usize, n_cols: usize, scores: &[f64]) -> Detection {
+    fn make_detection_with_scores(
+        points: &[f64],
+        n_rows: usize,
+        n_cols: usize,
+        scores: &[f64],
+    ) -> Detection {
         Detection {
             points: DMatrix::from_row_slice(n_rows, n_cols, points),
             scores: Some(scores.to_vec()),
@@ -251,7 +256,12 @@ mod tests {
         }
     }
 
-    fn make_object_with_scores(points: &[f64], n_rows: usize, n_cols: usize, scores: &[f64]) -> TrackedObject {
+    fn make_object_with_scores(
+        points: &[f64],
+        n_rows: usize,
+        n_cols: usize,
+        scores: &[f64],
+    ) -> TrackedObject {
         let det = Detection {
             points: DMatrix::from_row_slice(n_rows, n_cols, points),
             scores: Some(scores.to_vec()),
@@ -505,14 +515,8 @@ mod tests {
 
     #[test]
     fn test_iou_multiple_boxes() {
-        let cand = DMatrix::from_row_slice(2, 4, &[
-            0.0, 0.0, 1.0, 1.0,
-            2.0, 2.0, 3.0, 3.0,
-        ]);
-        let obj = DMatrix::from_row_slice(2, 4, &[
-            0.0, 0.0, 1.0, 1.0,
-            4.0, 4.0, 5.0, 5.0,
-        ]);
+        let cand = DMatrix::from_row_slice(2, 4, &[0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0]);
+        let obj = DMatrix::from_row_slice(2, 4, &[0.0, 0.0, 1.0, 1.0, 4.0, 4.0, 5.0, 5.0]);
         let result = iou(&cand, &obj);
 
         // cand[0] vs obj[0]: perfect match -> 0
@@ -531,7 +535,8 @@ mod tests {
     fn test_keypoint_voting_perfect_match() {
         let vote_d = create_keypoints_voting_distance(8.0_f64.sqrt(), 0.5);
 
-        let det = make_detection_with_scores(&[0.0, 0.0, 1.0, 1.0, 2.0, 2.0], 3, 2, &[0.6, 0.6, 0.6]);
+        let det =
+            make_detection_with_scores(&[0.0, 0.0, 1.0, 1.0, 2.0, 2.0], 3, 2, &[0.6, 0.6, 0.6]);
         let obj = make_object_with_scores(&[0.0, 0.0, 1.0, 1.0, 2.0, 2.0], 3, 2, &[0.6, 0.6, 0.6]);
 
         let result = vote_d(&det, &obj);
@@ -543,7 +548,8 @@ mod tests {
     fn test_keypoint_voting_just_under_threshold() {
         let vote_d = create_keypoints_voting_distance(8.0_f64.sqrt(), 0.5);
 
-        let det = make_detection_with_scores(&[0.0, 0.0, 1.0, 1.0, 2.0, 2.0], 3, 2, &[0.6, 0.6, 0.6]);
+        let det =
+            make_detection_with_scores(&[0.0, 0.0, 1.0, 1.0, 2.0, 2.0], 3, 2, &[0.6, 0.6, 0.6]);
         let obj = make_object_with_scores(&[0.0, 0.0, 1.0, 1.0, 4.0, 3.9], 3, 2, &[0.6, 0.6, 0.6]);
 
         let result = vote_d(&det, &obj);
@@ -556,7 +562,8 @@ mod tests {
     fn test_keypoint_voting_just_above_threshold() {
         let vote_d = create_keypoints_voting_distance(8.0_f64.sqrt(), 0.5);
 
-        let det = make_detection_with_scores(&[0.0, 0.0, 1.0, 1.0, 2.0, 2.0], 3, 2, &[0.6, 0.6, 0.6]);
+        let det =
+            make_detection_with_scores(&[0.0, 0.0, 1.0, 1.0, 2.0, 2.0], 3, 2, &[0.6, 0.6, 0.6]);
         let obj = make_object_with_scores(&[0.0, 0.0, 1.0, 1.0, 4.0, 4.0], 3, 2, &[0.6, 0.6, 0.6]);
 
         let result = vote_d(&det, &obj);
@@ -569,7 +576,8 @@ mod tests {
     fn test_keypoint_voting_no_match_scores() {
         let vote_d = create_keypoints_voting_distance(8.0_f64.sqrt(), 0.5);
 
-        let det = make_detection_with_scores(&[0.0, 0.0, 1.0, 1.0, 2.0, 2.0], 3, 2, &[0.5, 0.5, 0.5]);
+        let det =
+            make_detection_with_scores(&[0.0, 0.0, 1.0, 1.0, 2.0, 2.0], 3, 2, &[0.5, 0.5, 0.5]);
         let obj = make_object_with_scores(&[0.0, 0.0, 1.0, 1.0, 2.0, 2.0], 3, 2, &[0.5, 0.5, 0.5]);
 
         let result = vote_d(&det, &obj);
@@ -581,7 +589,8 @@ mod tests {
     fn test_keypoint_voting_no_match_distances() {
         let vote_d = create_keypoints_voting_distance(8.0_f64.sqrt(), 0.5);
 
-        let det = make_detection_with_scores(&[0.0, 0.0, 1.0, 1.0, 2.0, 2.0], 3, 2, &[0.6, 0.6, 0.6]);
+        let det =
+            make_detection_with_scores(&[0.0, 0.0, 1.0, 1.0, 2.0, 2.0], 3, 2, &[0.6, 0.6, 0.6]);
         let obj = make_object_with_scores(&[2.0, 2.0, 3.0, 3.0, 4.0, 4.0], 3, 2, &[0.6, 0.6, 0.6]);
 
         let result = vote_d(&det, &obj);

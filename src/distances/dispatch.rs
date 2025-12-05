@@ -4,13 +4,13 @@
 //! distance types and dispatches without vtable lookups, improving performance
 //! for hot-path code.
 
-use nalgebra::DMatrix;
-use crate::{Detection, TrackedObject};
-use super::traits::Distance;
+use super::functions::{frobenius, iou, mean_euclidean, mean_manhattan};
 use super::scalar::ScalarDistance;
-use super::vectorized::VectorizedDistance;
 use super::scipy_wrapper::ScipyDistance;
-use super::functions::{frobenius, mean_euclidean, mean_manhattan, iou};
+use super::traits::Distance;
+use super::vectorized::VectorizedDistance;
+use crate::{Detection, TrackedObject};
+use nalgebra::DMatrix;
 
 /// Enum-based distance function for static dispatch.
 ///
@@ -81,7 +81,9 @@ pub fn distance_function_by_name(name: &str) -> DistanceFunction {
         // Scipy functions
         "euclidean" => DistanceFunction::ScipyEuclidean(ScipyDistance::new("euclidean")),
         "sqeuclidean" => DistanceFunction::ScipySqeuclidean(ScipyDistance::new("sqeuclidean")),
-        "manhattan" | "cityblock" => DistanceFunction::ScipyManhattan(ScipyDistance::new("manhattan")),
+        "manhattan" | "cityblock" => {
+            DistanceFunction::ScipyManhattan(ScipyDistance::new("manhattan"))
+        }
         "cosine" => DistanceFunction::ScipyCosine(ScipyDistance::new("cosine")),
         "chebyshev" => DistanceFunction::ScipyChebyshev(ScipyDistance::new("chebyshev")),
 
@@ -116,11 +118,7 @@ pub fn try_distance_function_by_name(name: &str) -> Result<DistanceFunction, Str
 // Implement the Distance trait for DistanceFunction so it can be used interchangeably
 impl Distance for DistanceFunction {
     #[inline(always)]
-    fn get_distances(
-        &self,
-        objects: &[&TrackedObject],
-        candidates: &[&Detection],
-    ) -> DMatrix<f64> {
+    fn get_distances(&self, objects: &[&TrackedObject], candidates: &[&Detection]) -> DMatrix<f64> {
         // Delegate to the inherent method
         DistanceFunction::get_distances(self, objects, candidates)
     }

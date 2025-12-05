@@ -6,23 +6,23 @@
 //! - `NoFilter` - Baseline without prediction
 //! - `FilterEnum` / `FilterFactoryEnum` - Enum-based static dispatch (preferred for performance)
 
-mod traits;
-mod optimized;
+mod dispatch;
 mod filterpy;
 mod no_filter;
-mod dispatch;
+mod optimized;
+mod traits;
 
-pub use traits::{Filter, FilterFactory};
-pub use optimized::{OptimizedKalmanFilter, OptimizedKalmanFilterFactory};
+pub use dispatch::{FilterEnum, FilterFactoryEnum};
 pub use filterpy::{FilterPyKalmanFilter, FilterPyKalmanFilterFactory};
 pub use no_filter::{NoFilter, NoFilterFactory};
-pub use dispatch::{FilterEnum, FilterFactoryEnum};
+pub use optimized::{OptimizedKalmanFilter, OptimizedKalmanFilterFactory};
+pub use traits::{Filter, FilterFactory};
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nalgebra::{DMatrix, DVector};
     use approx::assert_relative_eq;
+    use nalgebra::{DMatrix, DVector};
 
     // ===== Filter Comparison Tests =====
 
@@ -67,13 +67,7 @@ mod tests {
         let mut optimized = optimized_factory.create_filter(&initial_detection);
 
         // Simulate a moving object
-        let positions = vec![
-            (1.0, 1.0),
-            (1.0, 2.0),
-            (1.0, 3.0),
-            (1.0, 4.0),
-            (1.0, 5.0),
-        ];
+        let positions = vec![(1.0, 1.0), (1.0, 2.0), (1.0, 3.0), (1.0, 4.0), (1.0, 5.0)];
 
         for (x, y) in positions {
             let measurement = DVector::from_vec(vec![x, y]);
@@ -101,10 +95,13 @@ mod tests {
         let mut filter = factory.create_filter(&initial_detection);
 
         // Create H matrix that only observes the first dimension
-        let h = DMatrix::from_row_slice(2, 4, &[
-            1.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0, 0.0, // Second dimension not observed
-        ]);
+        let h = DMatrix::from_row_slice(
+            2,
+            4,
+            &[
+                1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, // Second dimension not observed
+            ],
+        );
 
         // Second value (100.0) should be ignored since H[1,1]=0
         let measurement = DVector::from_vec(vec![2.0, 100.0]);
@@ -112,7 +109,11 @@ mod tests {
 
         let state = filter.get_state();
         // First position should be updated towards 2.0
-        assert!(state[(0, 0)] > 1.5, "position x should move toward 2.0, got {}", state[(0, 0)]);
+        assert!(
+            state[(0, 0)] > 1.5,
+            "position x should move toward 2.0, got {}",
+            state[(0, 0)]
+        );
         // Second position should stay close to 1.0 (not affected by the 100.0)
         assert_relative_eq!(state[(0, 1)], 1.0, epsilon = 0.1);
     }
@@ -124,10 +125,13 @@ mod tests {
         let mut filter = factory.create_filter(&initial_detection);
 
         // Create H matrix that only observes the first dimension
-        let h = DMatrix::from_row_slice(2, 4, &[
-            1.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0, 0.0, // Second dimension not observed
-        ]);
+        let h = DMatrix::from_row_slice(
+            2,
+            4,
+            &[
+                1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, // Second dimension not observed
+            ],
+        );
 
         // Second value (100.0) should be ignored since H[1,1]=0
         let measurement = DVector::from_vec(vec![2.0, 100.0]);
@@ -135,7 +139,11 @@ mod tests {
 
         let state = filter.get_state();
         // First position should be updated towards 2.0
-        assert!(state[(0, 0)] > 1.5, "position x should move toward 2.0, got {}", state[(0, 0)]);
+        assert!(
+            state[(0, 0)] > 1.5,
+            "position x should move toward 2.0, got {}",
+            state[(0, 0)]
+        );
         // Second position should stay close to 1.0 (not affected by the 100.0)
         assert_relative_eq!(state[(0, 1)], 1.0, epsilon = 0.1);
     }
@@ -145,10 +153,7 @@ mod tests {
     #[test]
     fn test_filters_multipoint() {
         // Test with 2 points, 2D each (e.g., bounding box corners)
-        let initial_detection = DMatrix::from_row_slice(2, 2, &[
-            0.0, 0.0,
-            1.0, 1.0,
-        ]);
+        let initial_detection = DMatrix::from_row_slice(2, 2, &[0.0, 0.0, 1.0, 1.0]);
 
         let filterpy_factory = FilterPyKalmanFilterFactory::new(4.0, 0.1, 10.0);
         let optimized_factory = OptimizedKalmanFilterFactory::new(4.0, 0.1, 10.0, 0.0, 1.0);
@@ -184,10 +189,7 @@ mod tests {
     #[test]
     fn test_nofilter_multipoint() {
         // Test NoFilter with multiple points
-        let initial_detection = DMatrix::from_row_slice(2, 2, &[
-            0.0, 0.0,
-            1.0, 1.0,
-        ]);
+        let initial_detection = DMatrix::from_row_slice(2, 2, &[0.0, 0.0, 1.0, 1.0]);
 
         let factory = NoFilterFactory::new();
         let mut filter = factory.create_filter(&initial_detection);

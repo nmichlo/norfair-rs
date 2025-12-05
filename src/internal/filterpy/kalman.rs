@@ -2,6 +2,7 @@
 //!
 //! This provides a standard Kalman filter with configurable state transition,
 //! measurement, and noise matrices.
+#![allow(dead_code)]
 
 use nalgebra::{DMatrix, DVector};
 
@@ -86,12 +87,7 @@ impl KalmanFilter {
     /// * `z` - Measurement vector
     /// * `r` - Optional measurement noise covariance (overrides self.r)
     /// * `h` - Optional measurement matrix (overrides self.h)
-    pub fn update(
-        &mut self,
-        z: &DVector<f64>,
-        r: Option<&DMatrix<f64>>,
-        h: Option<&DMatrix<f64>>,
-    ) {
+    pub fn update(&mut self, z: &DVector<f64>, r: Option<&DMatrix<f64>>, h: Option<&DMatrix<f64>>) {
         let r = r.unwrap_or(&self.r);
         let h = h.unwrap_or(&self.h);
 
@@ -178,22 +174,13 @@ mod tests {
 
         // Set F matrix for constant velocity model: [1 dt; 0 1]
         let dt = 1.0;
-        kf.f = DMatrix::from_row_slice(2, 2, &[
-            1.0, dt,
-            0.0, 1.0,
-        ]);
+        kf.f = DMatrix::from_row_slice(2, 2, &[1.0, dt, 0.0, 1.0]);
 
         // Set Q (process noise)
-        kf.q = DMatrix::from_row_slice(2, 2, &[
-            0.1, 0.0,
-            0.0, 0.1,
-        ]);
+        kf.q = DMatrix::from_row_slice(2, 2, &[0.1, 0.0, 0.0, 0.1]);
 
         // Initial covariance
-        kf.p = DMatrix::from_row_slice(2, 2, &[
-            1.0, 0.0,
-            0.0, 1.0,
-        ]);
+        kf.p = DMatrix::from_row_slice(2, 2, &[1.0, 0.0, 0.0, 1.0]);
 
         // Predict
         kf.predict(None);
@@ -226,10 +213,7 @@ mod tests {
         kf.r = DMatrix::from_row_slice(1, 1, &[1.0]);
 
         // Set P (large initial uncertainty)
-        kf.p = DMatrix::from_row_slice(2, 2, &[
-            10.0, 0.0,
-            0.0, 10.0,
-        ]);
+        kf.p = DMatrix::from_row_slice(2, 2, &[10.0, 0.0, 0.0, 10.0]);
 
         // Measurement: position = 5.0
         let z = DVector::from_vec(vec![5.0]);
@@ -254,24 +238,15 @@ mod tests {
         kf.x = DVector::from_vec(vec![0.0, 1.0]); // start at 0, moving at 1 unit/step
 
         // F matrix for dt=1: x_new = x + v, v_new = v
-        kf.f = DMatrix::from_row_slice(2, 2, &[
-            1.0, 1.0,
-            0.0, 1.0,
-        ]);
+        kf.f = DMatrix::from_row_slice(2, 2, &[1.0, 1.0, 0.0, 1.0]);
 
         // H matrix: measure position only
         kf.h = DMatrix::from_row_slice(1, 2, &[1.0, 0.0]);
 
         // Low noise
-        kf.q = DMatrix::from_row_slice(2, 2, &[
-            0.01, 0.0,
-            0.0, 0.01,
-        ]);
+        kf.q = DMatrix::from_row_slice(2, 2, &[0.01, 0.0, 0.0, 0.01]);
         kf.r = DMatrix::from_row_slice(1, 1, &[0.1]);
-        kf.p = DMatrix::from_row_slice(2, 2, &[
-            1.0, 0.0,
-            0.0, 1.0,
-        ]);
+        kf.p = DMatrix::from_row_slice(2, 2, &[1.0, 0.0, 0.0, 1.0]);
 
         // Simulate movement: object moves from 0 to 5 in 5 steps
         let measurements = [1.0, 2.0, 3.0, 4.0, 5.0];
@@ -288,11 +263,22 @@ mod tests {
             if i >= 2 {
                 // Position should be close to measurement
                 let diff = (kf.x[0] - z_val).abs();
-                assert!(diff < 0.5, "Step {}: position {} too far from measurement {}", i+1, kf.x[0], z_val);
+                assert!(
+                    diff < 0.5,
+                    "Step {}: position {} too far from measurement {}",
+                    i + 1,
+                    kf.x[0],
+                    z_val
+                );
 
                 // Velocity should be close to 1.0
                 let vel_diff = (kf.x[1] - 1.0).abs();
-                assert!(vel_diff < 0.5, "Step {}: velocity {} should be close to 1.0", i+1, kf.x[1]);
+                assert!(
+                    vel_diff < 0.5,
+                    "Step {}: velocity {} should be close to 1.0",
+                    i + 1,
+                    kf.x[1]
+                );
             }
         }
     }
@@ -314,14 +300,15 @@ mod tests {
 
         // Constant velocity model
         let dt = 1.0;
-        kf.f = DMatrix::from_row_slice(dim_x, dim_x, &[
-            1.0, 0.0, 0.0, dt,  0.0, 0.0,
-            0.0, 1.0, 0.0, 0.0, dt,  0.0,
-            0.0, 0.0, 1.0, 0.0, 0.0, dt,
-            0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-            0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
-            0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
-        ]);
+        kf.f = DMatrix::from_row_slice(
+            dim_x,
+            dim_x,
+            &[
+                1.0, 0.0, 0.0, dt, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, dt, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+                dt, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                0.0, 1.0,
+            ],
+        );
 
         // Predict
         kf.predict(None);
@@ -350,15 +337,16 @@ mod tests {
         kf.x = DVector::from_vec(vec![1.0, 2.0, 0.0, 0.0]);
 
         // H matrix that only observes x position, not y
-        let h = DMatrix::from_row_slice(2, 4, &[
-            1.0, 0.0, 0.0, 0.0, // Measure x position
-            0.0, 0.0, 0.0, 0.0, // Don't measure y position
-        ]);
+        let h = DMatrix::from_row_slice(
+            2,
+            4,
+            &[
+                1.0, 0.0, 0.0, 0.0, // Measure x position
+                0.0, 0.0, 0.0, 0.0, // Don't measure y position
+            ],
+        );
 
-        let r = DMatrix::from_row_slice(2, 2, &[
-            1.0, 0.0,
-            0.0, 1.0,
-        ]);
+        let r = DMatrix::from_row_slice(2, 2, &[1.0, 0.0, 0.0, 1.0]);
 
         let mut p = DMatrix::zeros(4, 4);
         for i in 0..4 {
@@ -372,8 +360,11 @@ mod tests {
         kf.update(&z, Some(&r), Some(&h));
 
         // X position should update toward 3.0
-        assert!(kf.x[0] > 1.5 && kf.x[0] < 2.9,
-            "X position should update toward measurement: got {}", kf.x[0]);
+        assert!(
+            kf.x[0] > 1.5 && kf.x[0] < 2.9,
+            "X position should update toward measurement: got {}",
+            kf.x[0]
+        );
 
         // Y position should remain close to 2.0 (not affected by measurement)
         assert_relative_eq!(kf.x[1], 2.0, epsilon = 0.1);

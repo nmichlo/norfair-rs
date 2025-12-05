@@ -2,6 +2,8 @@
 //!
 //! Ported from py-motmetrics.
 //! License: MIT (Christoph Heindl, Jack Valmadre)
+#![allow(dead_code)]
+#![allow(clippy::upper_case_acronyms)]
 
 use nalgebra::DMatrix;
 use std::collections::HashMap;
@@ -236,7 +238,12 @@ impl ExtendedMOTAccumulator {
             }
         }
 
-        (mostly_tracked, mostly_lost, partially_tracked, total_fragmentations)
+        (
+            mostly_tracked,
+            mostly_lost,
+            partially_tracked,
+            total_fragmentations,
+        )
     }
 }
 
@@ -528,10 +535,7 @@ mod tests {
         let mut acc = MOTAccumulator::new();
 
         // Two objects, perfect match
-        let distances = DMatrix::from_row_slice(2, 2, &[
-            0.0, f64::INFINITY,
-            f64::INFINITY, 0.0,
-        ]);
+        let distances = DMatrix::from_row_slice(2, 2, &[0.0, f64::INFINITY, f64::INFINITY, 0.0]);
         acc.update(0, &[1, 2], &[1, 2], &distances);
 
         let metrics = acc.compute_metrics();
@@ -557,10 +561,16 @@ mod tests {
         let mut acc = MOTAccumulator::new();
 
         // 2 GT, 2 predictions, but only 1 valid match
-        let distances = DMatrix::from_row_slice(2, 2, &[
-            0.1, f64::INFINITY,  // GT0 matches Pred0
-            f64::INFINITY, f64::INFINITY,  // GT1 matches nothing
-        ]);
+        let distances = DMatrix::from_row_slice(
+            2,
+            2,
+            &[
+                0.1,
+                f64::INFINITY, // GT0 matches Pred0
+                f64::INFINITY,
+                f64::INFINITY, // GT1 matches nothing
+            ],
+        );
         acc.update(0, &[1, 2], &[1, 2], &distances);
 
         let metrics = acc.compute_metrics();
@@ -632,10 +642,7 @@ mod tests {
         let mut acc = MOTAccumulator::new();
 
         // Frame 1: 2 GT, 2 predictions (2 matches)
-        let dist1 = DMatrix::from_row_slice(2, 2, &[
-            0.0, f64::INFINITY,
-            f64::INFINITY, 0.0,
-        ]);
+        let dist1 = DMatrix::from_row_slice(2, 2, &[0.0, f64::INFINITY, f64::INFINITY, 0.0]);
         acc.update(0, &[1, 2], &[1, 2], &dist1);
 
         // Frame 2: 2 GT, 1 prediction (1 match, 1 miss)
@@ -738,10 +745,7 @@ mod tests {
         let mut acc = MOTAccumulator::new();
 
         // Perfect tracking: all matches, no misses/FPs/switches
-        let dist = DMatrix::from_row_slice(2, 2, &[
-            0.0, f64::INFINITY,
-            f64::INFINITY, 0.0,
-        ]);
+        let dist = DMatrix::from_row_slice(2, 2, &[0.0, f64::INFINITY, f64::INFINITY, 0.0]);
 
         for _ in 0..10 {
             acc.update(0, &[1, 2], &[1, 2], &dist);
@@ -784,10 +788,14 @@ mod tests {
 
         // Test greedy matching: GT0 should match Pred1 (distance 0.1)
         // even though GT1 also wants Pred1 (distance 0.2)
-        let distances = DMatrix::from_row_slice(2, 2, &[
-            0.5, 0.1,  // GT0: prefers Pred1
-            0.2, 0.2,  // GT1: both same
-        ]);
+        let distances = DMatrix::from_row_slice(
+            2,
+            2,
+            &[
+                0.5, 0.1, // GT0: prefers Pred1
+                0.2, 0.2, // GT1: both same
+            ],
+        );
         acc.update(0, &[1, 2], &[1, 2], &distances);
 
         let metrics = acc.compute_metrics();
@@ -802,10 +810,11 @@ mod tests {
         let mut acc = MOTAccumulator::new();
 
         // All infinite distances → no matches
-        let distances = DMatrix::from_row_slice(2, 2, &[
-            f64::INFINITY, f64::INFINITY,
-            f64::INFINITY, f64::INFINITY,
-        ]);
+        let distances = DMatrix::from_row_slice(
+            2,
+            2,
+            &[f64::INFINITY, f64::INFINITY, f64::INFINITY, f64::INFINITY],
+        );
         acc.update(0, &[1, 2], &[1, 2], &distances);
 
         let metrics = acc.compute_metrics();
@@ -837,13 +846,19 @@ mod tests {
         lifecycle.update_matched(1);
         assert_eq!(lifecycle.tracked_frames, 1);
         assert_eq!(lifecycle.detected_frames, 1);
-        assert_eq!(lifecycle.fragmentations, 0, "Expected no fragmentation on first match");
+        assert_eq!(
+            lifecycle.fragmentations, 0,
+            "Expected no fragmentation on first match"
+        );
         assert!(lifecycle.was_matched);
 
         // Frame 2: Consecutive match
         lifecycle.update_matched(2);
         assert_eq!(lifecycle.tracked_frames, 2);
-        assert_eq!(lifecycle.fragmentations, 0, "Expected no fragmentation on consecutive match");
+        assert_eq!(
+            lifecycle.fragmentations, 0,
+            "Expected no fragmentation on consecutive match"
+        );
     }
 
     #[test]
@@ -851,9 +866,15 @@ mod tests {
         let mut lifecycle = TrackLifecycle::new(1, 1);
 
         lifecycle.update_missed(1);
-        assert_eq!(lifecycle.tracked_frames, 0, "Expected TrackedFrames=0 after miss");
+        assert_eq!(
+            lifecycle.tracked_frames, 0,
+            "Expected TrackedFrames=0 after miss"
+        );
         assert_eq!(lifecycle.detected_frames, 1);
-        assert!(!lifecycle.was_matched, "Expected WasMatched=false after miss");
+        assert!(
+            !lifecycle.was_matched,
+            "Expected WasMatched=false after miss"
+        );
     }
 
     #[test]
@@ -862,22 +883,34 @@ mod tests {
 
         // Frame 1: Match
         lifecycle.update_matched(1);
-        assert_eq!(lifecycle.fragmentations, 0, "Frame 1: Expected no fragmentation");
+        assert_eq!(
+            lifecycle.fragmentations, 0,
+            "Frame 1: Expected no fragmentation"
+        );
 
         // Frame 2: Miss (track break)
         lifecycle.update_missed(2);
-        assert_eq!(lifecycle.fragmentations, 0, "Frame 2: Expected no fragmentation on miss");
+        assert_eq!(
+            lifecycle.fragmentations, 0,
+            "Frame 2: Expected no fragmentation on miss"
+        );
 
         // Frame 3: Match (fragmentation: miss → match)
         lifecycle.update_matched(3);
-        assert_eq!(lifecycle.fragmentations, 1, "Frame 3: Expected 1 fragmentation (miss → match)");
+        assert_eq!(
+            lifecycle.fragmentations, 1,
+            "Frame 3: Expected 1 fragmentation (miss → match)"
+        );
 
         // Frame 4: Miss
         lifecycle.update_missed(4);
 
         // Frame 5: Match (second fragmentation)
         lifecycle.update_matched(5);
-        assert_eq!(lifecycle.fragmentations, 2, "Frame 5: Expected 2 fragmentations");
+        assert_eq!(
+            lifecycle.fragmentations, 2,
+            "Frame 5: Expected 2 fragmentations"
+        );
     }
 
     #[test]
@@ -891,9 +924,9 @@ mod tests {
         // 3 tracked out of 5 detected: coverage = 0.6
         lifecycle.update_matched(1); // Tracked
         lifecycle.update_matched(2); // Tracked
-        lifecycle.update_missed(3);  // Missed
+        lifecycle.update_missed(3); // Missed
         lifecycle.update_matched(4); // Tracked
-        lifecycle.update_missed(5);  // Missed
+        lifecycle.update_missed(5); // Missed
 
         let coverage = lifecycle.coverage();
         assert_relative_eq!(coverage, 0.6, epsilon = 1e-10);
@@ -913,7 +946,10 @@ mod tests {
     }
 
     /// Mock Hungarian that returns no matches (all unmatched)
-    fn mock_hungarian_no_matches(distances: &[Vec<f64>], _threshold: f64) -> (Vec<[usize; 2]>, Vec<usize>, Vec<usize>) {
+    fn mock_hungarian_no_matches(
+        distances: &[Vec<f64>],
+        _threshold: f64,
+    ) -> (Vec<[usize; 2]>, Vec<usize>, Vec<usize>) {
         let num_gt = distances.len();
         let num_pred = if num_gt > 0 { distances[0].len() } else { 0 };
 
@@ -948,7 +984,14 @@ mod tests {
         ];
         let pred_ids = vec![1, 2, 3];
 
-        acc.update(&[], &[], &pred_bboxes, &pred_ids, 0.5, mock_hungarian_no_matches);
+        acc.update(
+            &[],
+            &[],
+            &pred_bboxes,
+            &pred_ids,
+            0.5,
+            mock_hungarian_no_matches,
+        );
 
         assert_eq!(acc.num_false_positives, 3);
         assert_eq!(acc.num_matches, 0);
@@ -960,13 +1003,17 @@ mod tests {
         let mut acc = ExtendedMOTAccumulator::new("test");
 
         // 2 GT, no predictions → 2 misses
-        let gt_bboxes = vec![
-            vec![0.0, 0.0, 10.0, 10.0],
-            vec![20.0, 20.0, 30.0, 30.0],
-        ];
+        let gt_bboxes = vec![vec![0.0, 0.0, 10.0, 10.0], vec![20.0, 20.0, 30.0, 30.0]];
         let gt_ids = vec![1, 2];
 
-        acc.update(&gt_bboxes, &gt_ids, &[], &[], 0.5, mock_hungarian_no_matches);
+        acc.update(
+            &gt_bboxes,
+            &gt_ids,
+            &[],
+            &[],
+            0.5,
+            mock_hungarian_no_matches,
+        );
 
         assert_eq!(acc.num_misses, 2);
         assert_eq!(acc.num_objects, 2);
@@ -975,8 +1022,16 @@ mod tests {
         assert_eq!(acc.track_lifecycles.len(), 2);
         for &gt_id in &gt_ids {
             let lifecycle = acc.track_lifecycles.get(&gt_id).unwrap();
-            assert_eq!(lifecycle.detected_frames, 1, "GT {}: Expected 1 detected frame", gt_id);
-            assert_eq!(lifecycle.tracked_frames, 0, "GT {}: Expected 0 tracked frames", gt_id);
+            assert_eq!(
+                lifecycle.detected_frames, 1,
+                "GT {}: Expected 1 detected frame",
+                gt_id
+            );
+            assert_eq!(
+                lifecycle.tracked_frames, 0,
+                "GT {}: Expected 0 tracked frames",
+                gt_id
+            );
         }
     }
 
@@ -985,14 +1040,13 @@ mod tests {
         let mut acc = ExtendedMOTAccumulator::new("test");
 
         // Perfect match: same GT and predictions
-        let boxes = vec![
-            vec![0.0, 0.0, 10.0, 10.0],
-            vec![20.0, 20.0, 30.0, 30.0],
-        ];
+        let boxes = vec![vec![0.0, 0.0, 10.0, 10.0], vec![20.0, 20.0, 30.0, 30.0]];
         let ids = vec![1, 2];
 
         // Mock Hungarian returns all matches
-        let hungarian_fn = |_distances: &[Vec<f64>], _threshold: f64| -> (Vec<[usize; 2]>, Vec<usize>, Vec<usize>) {
+        let hungarian_fn = |_distances: &[Vec<f64>],
+                            _threshold: f64|
+         -> (Vec<[usize; 2]>, Vec<usize>, Vec<usize>) {
             (vec![[0, 0], [1, 1]], vec![], vec![])
         };
 
@@ -1023,11 +1077,20 @@ mod tests {
         let pred_ids = vec![1, 2];
 
         // Mock Hungarian: GT0↔Pred0 match, GT1 unmatched, Pred1 unmatched
-        let hungarian_fn = |_distances: &[Vec<f64>], _threshold: f64| -> (Vec<[usize; 2]>, Vec<usize>, Vec<usize>) {
+        let hungarian_fn = |_distances: &[Vec<f64>],
+                            _threshold: f64|
+         -> (Vec<[usize; 2]>, Vec<usize>, Vec<usize>) {
             (vec![[0, 0]], vec![1], vec![1])
         };
 
-        acc.update(&gt_bboxes, &gt_ids, &pred_bboxes, &pred_ids, 0.5, hungarian_fn);
+        acc.update(
+            &gt_bboxes,
+            &gt_ids,
+            &pred_bboxes,
+            &pred_ids,
+            0.5,
+            hungarian_fn,
+        );
 
         assert_eq!(acc.num_matches, 1);
         assert_eq!(acc.num_misses, 1);
@@ -1042,7 +1105,9 @@ mod tests {
         let boxes = vec![vec![0.0, 0.0, 10.0, 10.0]];
 
         // Frame 1: GT1 → Tracker1
-        let hungarian_fn = |_distances: &[Vec<f64>], _threshold: f64| -> (Vec<[usize; 2]>, Vec<usize>, Vec<usize>) {
+        let hungarian_fn = |_distances: &[Vec<f64>],
+                            _threshold: f64|
+         -> (Vec<[usize; 2]>, Vec<usize>, Vec<usize>) {
             (vec![[0, 0]], vec![], vec![])
         };
         acc.update(&boxes, &[1], &boxes, &[1], 0.5, hungarian_fn);
@@ -1065,7 +1130,9 @@ mod tests {
         let mut acc = ExtendedMOTAccumulator::new("test");
 
         // Perfect Hungarian matcher
-        let hungarian_fn = |distances: &[Vec<f64>], _threshold: f64| -> (Vec<[usize; 2]>, Vec<usize>, Vec<usize>) {
+        let hungarian_fn = |distances: &[Vec<f64>],
+                            _threshold: f64|
+         -> (Vec<[usize; 2]>, Vec<usize>, Vec<usize>) {
             let num_gt = distances.len();
             let num_pred = if num_gt > 0 { distances[0].len() } else { 0 };
             let num_matches = num_gt.min(num_pred);

@@ -6,7 +6,7 @@
 //! - numpy: Array utilities
 //! - motmetrics: MOTChallenge evaluation
 
-pub mod scipy;
 pub mod filterpy;
-pub mod numpy;
 pub mod motmetrics;
+pub mod numpy;
+pub mod scipy;

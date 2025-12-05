@@ -6,5 +6,4 @@
 mod accumulator;
 mod iou;
 
-pub use accumulator::*;
 pub use iou::*;

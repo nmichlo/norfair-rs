@@ -1,15 +1,15 @@
 //! Python wrappers for coordinate transformations.
 
-use pyo3::prelude::*;
-use pyo3::exceptions::PyValueError;
 use nalgebra::DMatrix;
 use numpy::{PyArray1, PyArray2, PyArrayMethods};
+use pyo3::exceptions::PyValueError;
+use pyo3::prelude::*;
 
 use crate::camera_motion::{
-    CoordinateTransformation, TranslationTransformation, NilCoordinateTransformation,
+    CoordinateTransformation, NilCoordinateTransformation, TranslationTransformation,
 };
 
-use super::detection::{numpy_to_dmatrix, dmatrix_to_numpy};
+use super::detection::{dmatrix_to_numpy, numpy_to_dmatrix};
 
 /// A wrapper for duck-typed Python coordinate transformations.
 ///
@@ -105,7 +105,8 @@ impl PyTranslationTransformation {
     #[new]
     fn new(py: Python<'_>, movement_vector: &Bound<'_, pyo3::types::PyAny>) -> PyResult<Self> {
         let np = py.import_bound("numpy")?;
-        let arr_f64 = np.call_method1("asarray", (movement_vector,))?
+        let arr_f64 = np
+            .call_method1("asarray", (movement_vector,))?
             .call_method1("astype", (np.getattr("float64")?,))?
             .call_method0("ravel")?;
         let arr: Bound<'_, PyArray1<f64>> = arr_f64.extract()?;
@@ -114,7 +115,7 @@ impl PyTranslationTransformation {
 
         if view.len() != 2 {
             return Err(PyValueError::new_err(
-                "movement_vector must have exactly 2 elements [dx, dy]"
+                "movement_vector must have exactly 2 elements [dx, dy]",
             ));
         }
 
@@ -166,8 +167,7 @@ impl PyTranslationTransformation {
     fn __repr__(&self) -> String {
         format!(
             "TranslationTransformation([{:.2}, {:.2}])",
-            self.inner.movement_vector[0],
-            self.inner.movement_vector[1]
+            self.inner.movement_vector[0], self.inner.movement_vector[1]
         )
     }
 }
@@ -200,11 +200,11 @@ pub fn extract_transform(obj: Option<&Bound<'_, PyAny>>) -> PyResult<Option<PyTr
             let has_rel_to_abs = py_obj.hasattr("rel_to_abs").unwrap_or(false);
             if has_abs_to_rel && has_rel_to_abs {
                 return Ok(Some(PyTransformEnum::PyCallable(
-                    PyCallableTransformation::new(py_obj.clone().unbind())
+                    PyCallableTransformation::new(py_obj.clone().unbind()),
                 )));
             }
             Err(pyo3::exceptions::PyTypeError::new_err(
-                "coord_transformations must have abs_to_rel and rel_to_abs methods, or be None"
+                "coord_transformations must have abs_to_rel and rel_to_abs methods, or be None",
             ))
         }
     }

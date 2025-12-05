@@ -2,6 +2,8 @@
 //!
 //! Ported from scipy.optimize.linear_sum_assignment
 //! License: BSD 3-Clause (SciPy Developers)
+#![allow(dead_code)]
+#![allow(clippy::needless_range_loop)]
 
 /// Represents a match between a row index and column index.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -70,7 +72,10 @@ pub fn linear_sum_assignment(cost_matrix: &[Vec<f64>], max_cost: f64) -> Assignm
             if col < num_cols {
                 let cost = cost_matrix[row_idx][col];
                 if cost <= max_cost {
-                    assignments.push(Assignment { row_idx, col_idx: col });
+                    assignments.push(Assignment {
+                        row_idx,
+                        col_idx: col,
+                    });
                     matched_rows[row_idx] = true;
                     matched_cols[col] = true;
                 }
@@ -149,7 +154,7 @@ fn hungarian_algorithm(cost_matrix: &[Vec<f64>]) -> Vec<Option<usize>> {
     // Augmenting path algorithm
     loop {
         // Find unmatched rows
-        let mut unmatched_rows: Vec<usize> = (0..n).filter(|&i| row_match[i].is_none()).collect();
+        let unmatched_rows: Vec<usize> = (0..n).filter(|&i| row_match[i].is_none()).collect();
 
         if unmatched_rows.is_empty() {
             break; // All rows matched
@@ -284,7 +289,9 @@ mod tests {
         assert!(result.unmatched_cols.is_empty());
 
         // Calculate total cost
-        let total: f64 = result.assignments.iter()
+        let total: f64 = result
+            .assignments
+            .iter()
             .map(|a| cost[a.row_idx][a.col_idx])
             .sum();
         assert!((total - 5.0).abs() < 1e-10); // Optimal: (0,1)=1 + (1,0)=2 + (2,2)=2 = 5
@@ -292,10 +299,7 @@ mod tests {
 
     #[test]
     fn test_linear_sum_assignment_cost_threshold() {
-        let cost = vec![
-            vec![1.0, 5.0],
-            vec![5.0, 1.0],
-        ];
+        let cost = vec![vec![1.0, 5.0], vec![5.0, 1.0]];
         let result = linear_sum_assignment(&cost, 2.0);
 
         // Only assignments with cost <= 2.0 should be kept
@@ -307,11 +311,7 @@ mod tests {
 
     #[test]
     fn test_linear_sum_assignment_rectangular_more_rows() {
-        let cost = vec![
-            vec![1.0, 2.0],
-            vec![3.0, 4.0],
-            vec![5.0, 6.0],
-        ];
+        let cost = vec![vec![1.0, 2.0], vec![3.0, 4.0], vec![5.0, 6.0]];
         let result = linear_sum_assignment(&cost, f64::INFINITY);
 
         // Can only match 2 rows to 2 columns
@@ -322,10 +322,7 @@ mod tests {
 
     #[test]
     fn test_linear_sum_assignment_rectangular_more_cols() {
-        let cost = vec![
-            vec![1.0, 2.0, 3.0],
-            vec![4.0, 5.0, 6.0],
-        ];
+        let cost = vec![vec![1.0, 2.0, 3.0], vec![4.0, 5.0, 6.0]];
         let result = linear_sum_assignment(&cost, f64::INFINITY);
 
         // Can only match 2 rows to 2 columns
@@ -356,10 +353,7 @@ mod tests {
 
     #[test]
     fn test_linear_sum_assignment_all_rejected_by_threshold() {
-        let cost = vec![
-            vec![10.0, 20.0],
-            vec![30.0, 40.0],
-        ];
+        let cost = vec![vec![10.0, 20.0], vec![30.0, 40.0]];
         let result = linear_sum_assignment(&cost, 5.0);
 
         // All costs exceed threshold
@@ -380,10 +374,7 @@ mod tests {
 
     #[test]
     fn test_linear_sum_assignment_partial_matching() {
-        let cost = vec![
-            vec![1.0, 100.0],
-            vec![100.0, 2.0],
-        ];
+        let cost = vec![vec![1.0, 100.0], vec![100.0, 2.0]];
         let result = linear_sum_assignment(&cost, 10.0);
 
         // Should get optimal matching with costs 1.0 and 2.0
@@ -392,14 +383,13 @@ mod tests {
 
     #[test]
     fn test_linear_sum_assignment_zero_costs() {
-        let cost = vec![
-            vec![0.0, 0.0],
-            vec![0.0, 0.0],
-        ];
+        let cost = vec![vec![0.0, 0.0], vec![0.0, 0.0]];
         let result = linear_sum_assignment(&cost, f64::INFINITY);
 
         assert_eq!(result.assignments.len(), 2);
-        let total: f64 = result.assignments.iter()
+        let total: f64 = result
+            .assignments
+            .iter()
             .map(|a| cost[a.row_idx][a.col_idx])
             .sum();
         assert!((total - 0.0).abs() < 1e-10);

@@ -1,15 +1,15 @@
 //! Python wrapper for Tracker.
 
-use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
+use pyo3::prelude::*;
 
-use crate::{Tracker, TrackerConfig, Detection};
-use crate::distances::{DistanceFunction, try_distance_function_by_name};
+use crate::distances::{try_distance_function_by_name, DistanceFunction};
+use crate::{Detection, Tracker, TrackerConfig};
 
 use super::detection::PyDetection;
-use super::tracked_object::PyTrackedObject;
+use super::distances::{extract_distance, PyBuiltinDistance, PyDistanceEnum};
 use super::filters::extract_filter_factory;
-use super::distances::{extract_distance, PyDistanceEnum, PyBuiltinDistance};
+use super::tracked_object::PyTrackedObject;
 use super::transforms::extract_transform;
 
 /// Object tracker.
@@ -94,35 +94,32 @@ impl PyTracker {
 
         // Get the DistanceFunction enum for built-in distances
         // For Python callables, we currently don't support them (would need custom tracker path)
-        let rust_distance: DistanceFunction = if let Ok(name) = distance_function.extract::<String>() {
-            // String name - use distance_function_by_name
-            try_distance_function_by_name(&name)
-                .map_err(|e| PyValueError::new_err(e))?
-        } else if let Ok(d) = distance_function.extract::<PyRef<PyBuiltinDistance>>() {
-            // PyBuiltinDistance - use its name
-            try_distance_function_by_name(&d.name)
-                .map_err(|e| PyValueError::new_err(e))?
-        } else {
-            // Python callable - not yet supported with enum-based tracker
-            return Err(PyValueError::new_err(
-                "Python callable distance functions are not yet supported. \
-                 Please use a string name like 'euclidean', 'iou', 'frobenius', etc."
-            ));
-        };
+        let rust_distance: DistanceFunction =
+            if let Ok(name) = distance_function.extract::<String>() {
+                // String name - use distance_function_by_name
+                try_distance_function_by_name(&name).map_err(|e| PyValueError::new_err(e))?
+            } else if let Ok(d) = distance_function.extract::<PyRef<PyBuiltinDistance>>() {
+                // PyBuiltinDistance - use its name
+                try_distance_function_by_name(&d.name).map_err(|e| PyValueError::new_err(e))?
+            } else {
+                // Python callable - not yet supported with enum-based tracker
+                return Err(PyValueError::new_err(
+                    "Python callable distance functions are not yet supported. \
+                 Please use a string name like 'euclidean', 'iou', 'frobenius', etc.",
+                ));
+            };
 
         // Validate parameters before creating config
         if let Some(delay) = initialization_delay {
             if delay < 0 {
                 return Err(PyValueError::new_err(
-                    "initialization_delay must be non-negative"
+                    "initialization_delay must be non-negative",
                 ));
             }
         }
 
         if hit_counter_max <= 0 {
-            return Err(PyValueError::new_err(
-                "hit_counter_max must be positive"
-            ));
+            return Err(PyValueError::new_err("hit_counter_max must be positive"));
         }
 
         // Extract filter factory and convert to FilterFactoryEnum
@@ -143,8 +140,7 @@ impl PyTracker {
         // TODO: Handle reid_distance_function if provided
 
         // Create tracker
-        let tracker = Tracker::new(config)
-            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let tracker = Tracker::new(config).map_err(|e| PyValueError::new_err(e.to_string()))?;
 
         // Store Python distance if it's a callable (for future use)
         let py_distance_opt = match &py_distance {
@@ -179,10 +175,8 @@ impl PyTracker {
         let py_detections = detections.unwrap_or_default();
 
         // Convert detections
-        let rust_detections: Vec<Detection> = py_detections
-            .iter()
-            .map(|d| d.get_detection())
-            .collect();
+        let rust_detections: Vec<Detection> =
+            py_detections.iter().map(|d| d.get_detection()).collect();
 
         // Extract coordinate transformation
         let transform = extract_transform(coord_transformations)?;
@@ -195,8 +189,12 @@ impl PyTracker {
             for py_det in &py_detections {
                 let det = py_det.inner.read().unwrap();
                 let abs_points = t.as_transform().rel_to_abs(&det.points);
-                drop(det);  // Release read lock
-                py_det.inner.write().unwrap().set_absolute_points(abs_points);
+                drop(det); // Release read lock
+                py_det
+                    .inner
+                    .write()
+                    .unwrap()
+                    .set_absolute_points(abs_points);
             }
         }
 

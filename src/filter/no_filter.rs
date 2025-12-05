@@ -3,8 +3,8 @@
 //! This provides a baseline for comparison - no prediction, just tracking
 //! the last known position.
 
-use nalgebra::{DMatrix, DVector};
 use super::traits::{Filter, FilterFactory};
+use nalgebra::{DMatrix, DVector};
 
 /// No-op filter that stores the last measurement.
 ///

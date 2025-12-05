@@ -1,7 +1,7 @@
 //! Detection-to-object matching algorithms.
 
-use nalgebra::DMatrix;
 use crate::{Error, Result};
+use nalgebra::DMatrix;
 
 /// Check if a matrix contains NaN values.
 #[inline]
@@ -13,7 +13,9 @@ pub fn has_nan(matrix: &DMatrix<f64>) -> bool {
 #[inline]
 pub fn validate_distance_matrix(matrix: &DMatrix<f64>) -> Result<()> {
     if has_nan(matrix) {
-        return Err(Error::DistanceError("Distance matrix contains NaN values".to_string()));
+        return Err(Error::DistanceError(
+            "Distance matrix contains NaN values".to_string(),
+        ));
     }
     Ok(())
 }
@@ -95,11 +97,7 @@ mod tests {
     #[test]
     fn test_perfect_matches() {
         // All distances below threshold - all should match
-        let matrix = DMatrix::from_row_slice(3, 3, &[
-            0.5, 0.9, 0.8,
-            0.9, 0.3, 0.7,
-            0.8, 0.7, 0.4,
-        ]);
+        let matrix = DMatrix::from_row_slice(3, 3, &[0.5, 0.9, 0.8, 0.9, 0.3, 0.7, 0.8, 0.7, 0.4]);
         let (dets, objs) = match_detections_and_objects(&matrix, 1.0);
 
         // Should match all 3 pairs
@@ -116,11 +114,7 @@ mod tests {
     #[test]
     fn test_threshold_filtering() {
         // Some distances above threshold, some below
-        let matrix = DMatrix::from_row_slice(3, 3, &[
-            0.5, 2.0, 3.0,
-            2.5, 0.8, 2.0,
-            3.0, 3.0, 0.3,
-        ]);
+        let matrix = DMatrix::from_row_slice(3, 3, &[0.5, 2.0, 3.0, 2.5, 0.8, 2.0, 3.0, 3.0, 0.3]);
         let (dets, objs) = match_detections_and_objects(&matrix, 1.5);
 
         // Greedy order: [2,2]=0.3, [0,0]=0.5, [1,1]=0.8
@@ -131,10 +125,7 @@ mod tests {
     #[test]
     fn test_all_above_threshold() {
         // All distances above threshold - no matches
-        let matrix = DMatrix::from_row_slice(2, 2, &[
-            5.0, 6.0,
-            7.0, 8.0,
-        ]);
+        let matrix = DMatrix::from_row_slice(2, 2, &[5.0, 6.0, 7.0, 8.0]);
         let (dets, objs) = match_detections_and_objects(&matrix, 3.0);
 
         assert!(dets.is_empty());
@@ -174,10 +165,7 @@ mod tests {
     #[test]
     fn test_greedy_behavior() {
         // Matrix where greedy picks diagonal matches
-        let matrix = DMatrix::from_row_slice(2, 2, &[
-            1.0, 2.0,
-            2.0, 1.0,
-        ]);
+        let matrix = DMatrix::from_row_slice(2, 2, &[1.0, 2.0, 2.0, 1.0]);
         let (dets, objs) = match_detections_and_objects(&matrix, 3.0);
 
         // Should match both
@@ -197,11 +185,15 @@ mod tests {
     #[test]
     fn test_one_to_one_constraint() {
         // Multiple candidates close to same object
-        let matrix = DMatrix::from_row_slice(3, 2, &[
-            0.5, 3.0,  // Cand 0 closest to Obj 0
-            0.6, 3.5,  // Cand 1 also close to Obj 0
-            0.7, 2.0,  // Cand 2 closest to Obj 1
-        ]);
+        let matrix = DMatrix::from_row_slice(
+            3,
+            2,
+            &[
+                0.5, 3.0, // Cand 0 closest to Obj 0
+                0.6, 3.5, // Cand 1 also close to Obj 0
+                0.7, 2.0, // Cand 2 closest to Obj 1
+            ],
+        );
         let (dets, objs) = match_detections_and_objects(&matrix, 4.0);
 
         // Should have 2 matches (one per object)
@@ -217,13 +209,13 @@ mod tests {
     #[test]
     fn test_more_detections_than_objects() {
         // 5 detections, 3 objects
-        let matrix = DMatrix::from_row_slice(5, 3, &[
-            0.5, 2.0, 3.0,
-            0.8, 0.4, 2.5,
-            1.2, 1.5, 0.3,
-            2.0, 2.5, 1.8,
-            3.0, 3.5, 2.2,
-        ]);
+        let matrix = DMatrix::from_row_slice(
+            5,
+            3,
+            &[
+                0.5, 2.0, 3.0, 0.8, 0.4, 2.5, 1.2, 1.5, 0.3, 2.0, 2.5, 1.8, 3.0, 3.5, 2.2,
+            ],
+        );
         let (dets, objs) = match_detections_and_objects(&matrix, 2.0);
 
         // Should match at most 3 (limited by objects)
@@ -237,10 +229,7 @@ mod tests {
     #[test]
     fn test_more_objects_than_detections() {
         // 2 detections, 4 objects
-        let matrix = DMatrix::from_row_slice(2, 4, &[
-            0.5, 2.0, 1.5, 3.0,
-            1.8, 0.6, 2.5, 2.2,
-        ]);
+        let matrix = DMatrix::from_row_slice(2, 4, &[0.5, 2.0, 1.5, 3.0, 1.8, 0.6, 2.5, 2.2]);
         let (dets, objs) = match_detections_and_objects(&matrix, 2.0);
 
         // Should match at most 2 (limited by detections)
@@ -255,10 +244,7 @@ mod tests {
 
     #[test]
     fn test_nan_detection() {
-        let matrix = DMatrix::from_row_slice(2, 2, &[
-            0.5, f64::NAN,
-            1.0, 0.8,
-        ]);
+        let matrix = DMatrix::from_row_slice(2, 2, &[0.5, f64::NAN, 1.0, 0.8]);
 
         assert!(has_nan(&matrix));
         assert!(validate_distance_matrix(&matrix).is_err());
@@ -266,10 +252,7 @@ mod tests {
 
     #[test]
     fn test_no_nan() {
-        let matrix = DMatrix::from_row_slice(2, 2, &[
-            0.5, 1.0,
-            1.5, 0.8,
-        ]);
+        let matrix = DMatrix::from_row_slice(2, 2, &[0.5, 1.0, 1.5, 0.8]);
 
         assert!(!has_nan(&matrix));
         assert!(validate_distance_matrix(&matrix).is_ok());
@@ -280,11 +263,21 @@ mod tests {
     #[test]
     fn test_inf_handling() {
         // Matrix with Inf values (from label mismatches in distance functions)
-        let matrix = DMatrix::from_row_slice(3, 3, &[
-            0.5, f64::INFINITY, f64::INFINITY,
-            f64::INFINITY, 0.8, f64::INFINITY,
-            f64::INFINITY, f64::INFINITY, 0.3,
-        ]);
+        let matrix = DMatrix::from_row_slice(
+            3,
+            3,
+            &[
+                0.5,
+                f64::INFINITY,
+                f64::INFINITY,
+                f64::INFINITY,
+                0.8,
+                f64::INFINITY,
+                f64::INFINITY,
+                f64::INFINITY,
+                0.3,
+            ],
+        );
         let (dets, objs) = match_detections_and_objects(&matrix, 1.0);
 
         // Should match the 3 finite values below threshold
@@ -321,11 +314,13 @@ mod tests {
     #[test]
     fn test_finds_minimum_value() {
         // Matrix with minimum at a specific position
-        let matrix = DMatrix::from_row_slice(3, 3, &[
-            5.0, 3.0, 7.0,
-            2.0, 9.0, 4.0,
-            6.0, 1.0, 8.0,  // Minimum is at [2,1] = 1.0
-        ]);
+        let matrix = DMatrix::from_row_slice(
+            3,
+            3,
+            &[
+                5.0, 3.0, 7.0, 2.0, 9.0, 4.0, 6.0, 1.0, 8.0, // Minimum is at [2,1] = 1.0
+            ],
+        );
 
         let (dets, objs) = match_detections_and_objects(&matrix, 10.0);
 
@@ -341,11 +336,7 @@ mod tests {
     #[test]
     fn test_minimum_matrix_value() {
         // Verify that all matches are below threshold (strict <)
-        let matrix = DMatrix::from_row_slice(3, 3, &[
-            5.0, 3.0, 7.0,
-            2.0, 9.0, 4.0,
-            6.0, 1.0, 8.0,
-        ]);
+        let matrix = DMatrix::from_row_slice(3, 3, &[5.0, 3.0, 7.0, 2.0, 9.0, 4.0, 6.0, 1.0, 8.0]);
 
         // With threshold 2.5, only values < 2.5 should match
         let (dets, objs) = match_detections_and_objects(&matrix, 2.5);

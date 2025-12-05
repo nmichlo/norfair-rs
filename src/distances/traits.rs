@@ -1,7 +1,7 @@
 //! Distance trait definition.
 
-use nalgebra::DMatrix;
 use crate::{Detection, TrackedObject};
+use nalgebra::DMatrix;
 
 /// Trait for distance functions used in object matching.
 ///
@@ -17,9 +17,5 @@ pub trait Distance: Send + Sync {
     /// # Returns
     /// Distance matrix of shape (n_candidates, n_objects).
     /// Entry (i, j) is the distance between candidate i and object j.
-    fn get_distances(
-        &self,
-        objects: &[&TrackedObject],
-        candidates: &[&Detection],
-    ) -> DMatrix<f64>;
+    fn get_distances(&self, objects: &[&TrackedObject], candidates: &[&Detection]) -> DMatrix<f64>;
 }

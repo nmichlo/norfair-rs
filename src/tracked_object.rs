@@ -1,12 +1,12 @@
 //! TrackedObject struct for tracked objects maintained by the tracker.
 
+use crate::camera_motion::CoordinateTransformation;
+use crate::filter::FilterEnum;
+use crate::Detection;
+use nalgebra::DMatrix;
 use std::collections::VecDeque;
 use std::fmt;
 use std::sync::atomic::{AtomicI32, Ordering};
-use nalgebra::DMatrix;
-use crate::Detection;
-use crate::filter::FilterEnum;
-use crate::camera_motion::CoordinateTransformation;
 
 /// Global ID counter for unique IDs across all factories.
 static GLOBAL_ID_COUNTER: AtomicI32 = AtomicI32::new(0);
@@ -96,7 +96,9 @@ impl Clone for TrackedObjectFactory {
         // Create a new factory with current counter values
         Self {
             permanent_id_counter: AtomicI32::new(self.permanent_id_counter.load(Ordering::Relaxed)),
-            initializing_id_counter: AtomicI32::new(self.initializing_id_counter.load(Ordering::Relaxed)),
+            initializing_id_counter: AtomicI32::new(
+                self.initializing_id_counter.load(Ordering::Relaxed),
+            ),
         }
     }
 }
@@ -186,11 +188,20 @@ impl fmt::Debug for TrackedObject {
             .field("estimate", &self.estimate)
             .field("estimate_velocity", &self.estimate_velocity)
             .field("is_initializing", &self.is_initializing)
-            .field("detected_at_least_once_points", &self.detected_at_least_once_points)
+            .field(
+                "detected_at_least_once_points",
+                &self.detected_at_least_once_points,
+            )
             .field("filter", &"<Filter>")
             .field("num_points", &self.num_points)
             .field("dim_points", &self.dim_points)
-            .field("last_coord_transform", &self.last_coord_transform.as_ref().map(|_| "<CoordinateTransformation>"))
+            .field(
+                "last_coord_transform",
+                &self
+                    .last_coord_transform
+                    .as_ref()
+                    .map(|_| "<CoordinateTransformation>"),
+            )
             .finish()
     }
 }
@@ -219,10 +230,7 @@ impl TrackedObject {
 
     /// Check which points are currently "live" (actively tracked).
     pub fn live_points(&self) -> Vec<bool> {
-        self.point_hit_counter
-            .iter()
-            .map(|&c| c > 0)
-            .collect()
+        self.point_hit_counter.iter().map(|&c| c > 0).collect()
     }
 }
 
@@ -244,7 +252,7 @@ impl Default for TrackedObject {
             estimate: DMatrix::zeros(1, 2),
             estimate_velocity: DMatrix::zeros(1, 2),
             is_initializing: true,
-            detected_at_least_once_points: vec![true],  // Default: 1 point, detected
+            detected_at_least_once_points: vec![true], // Default: 1 point, detected
             filter: FilterEnum::None(crate::filter::NoFilter::new(&DMatrix::zeros(1, 2))),
             num_points: 1,
             dim_points: 2,
@@ -310,7 +318,11 @@ mod tests {
 
         let ids = vec![g1a, g2a, g1b, g2b];
         let unique_ids: HashSet<_> = ids.iter().cloned().collect();
-        assert_eq!(ids.len(), unique_ids.len(), "All global IDs should be unique");
+        assert_eq!(
+            ids.len(),
+            unique_ids.len(),
+            "All global IDs should be unique"
+        );
     }
 
     #[test]
@@ -436,7 +448,7 @@ mod tests {
         use std::sync::Barrier;
 
         let num_factories = 4;
-        let ids_per_factory = 100;  // Reduced count for faster, more reliable test
+        let ids_per_factory = 100; // Reduced count for faster, more reliable test
         let expected_total = num_factories * ids_per_factory;
 
         let barrier = Arc::new(Barrier::new(num_factories));

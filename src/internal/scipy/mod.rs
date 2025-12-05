@@ -10,4 +10,3 @@ mod distance;
 mod optimize;
 
 pub use distance::*;
-pub use optimize::*;

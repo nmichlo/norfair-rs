@@ -1,10 +1,10 @@
 //! Utility functions for norfair.
 
-use std::collections::HashSet;
-use std::sync::OnceLock;
-use std::sync::Mutex;
-use nalgebra::DMatrix;
 use crate::{Error, Result};
+use nalgebra::DMatrix;
+use std::collections::HashSet;
+use std::sync::Mutex;
+use std::sync::OnceLock;
 
 /// Validate that points have shape (n_points, n_dims) where n_dims is 2 or 3.
 ///
@@ -80,10 +80,18 @@ pub fn get_bounding_box(points: &DMatrix<f64>) -> Option<(f64, f64, f64, f64)> {
         let x = points[(i, 0)];
         let y = points[(i, 1)];
 
-        if x < min_x { min_x = x; }
-        if x > max_x { max_x = x; }
-        if y < min_y { min_y = y; }
-        if y > max_y { max_y = y; }
+        if x < min_x {
+            min_x = x;
+        }
+        if x > max_x {
+            max_x = x;
+        }
+        if y < min_y {
+            min_y = y;
+        }
+        if y > max_y {
+            max_y = y;
+        }
     }
 
     Some((min_x, min_y, max_x, max_y))
@@ -110,11 +118,7 @@ mod tests {
     #[test]
     fn test_validate_points_valid_2d() {
         // Test valid 2D points array (n_points, 2)
-        let points = DMatrix::from_row_slice(3, 2, &[
-            1.0, 2.0,
-            3.0, 4.0,
-            5.0, 6.0,
-        ]);
+        let points = DMatrix::from_row_slice(3, 2, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
 
         let validated = validate_points(&points).expect("Expected no error for valid 2D points");
 
@@ -125,10 +129,7 @@ mod tests {
     #[test]
     fn test_validate_points_valid_3d() {
         // Test valid 3D points array (n_points, 3)
-        let points = DMatrix::from_row_slice(2, 3, &[
-            1.0, 2.0, 3.0,
-            4.0, 5.0, 6.0,
-        ]);
+        let points = DMatrix::from_row_slice(2, 3, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
 
         let validated = validate_points(&points).expect("Expected no error for valid 3D points");
 
@@ -170,17 +171,17 @@ mod tests {
     #[test]
     fn test_validate_points_invalid_dimensions_4d() {
         // Test invalid dimensions (n, 4) - should error
-        let points = DMatrix::from_row_slice(2, 4, &[
-            1.0, 2.0, 3.0, 4.0,
-            5.0, 6.0, 7.0, 8.0,
-        ]);
+        let points = DMatrix::from_row_slice(2, 4, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]);
 
         let err = validate_points(&points).expect_err("Expected error for 4D points");
 
         // Verify error message mentions invalid shape
         let error_msg = format!("{}", err);
-        assert!(error_msg.contains("shape") || error_msg.contains("invalid"),
-            "Expected error to mention shape, got: {}", error_msg);
+        assert!(
+            error_msg.contains("shape") || error_msg.contains("invalid"),
+            "Expected error to mention shape, got: {}",
+            error_msg
+        );
     }
 
     #[test]
@@ -192,8 +193,11 @@ mod tests {
 
         // Verify error message mentions invalid shape
         let error_msg = format!("{}", err);
-        assert!(error_msg.contains("shape") || error_msg.contains("invalid"),
-            "Expected error to mention shape, got: {}", error_msg);
+        assert!(
+            error_msg.contains("shape") || error_msg.contains("invalid"),
+            "Expected error to mention shape, got: {}",
+            error_msg
+        );
     }
 
     #[test]
@@ -205,8 +209,11 @@ mod tests {
 
         // Verify error message mentions invalid shape
         let error_msg = format!("{}", err);
-        assert!(error_msg.contains("shape") || error_msg.contains("invalid"),
-            "Expected error to mention shape, got: {}", error_msg);
+        assert!(
+            error_msg.contains("shape") || error_msg.contains("invalid"),
+            "Expected error to mention shape, got: {}",
+            error_msg
+        );
     }
 
     // ===== GetTerminalSize Tests =====
@@ -249,11 +256,7 @@ mod tests {
 
     #[test]
     fn test_get_bounding_box() {
-        let points = DMatrix::from_row_slice(3, 2, &[
-            1.0, 2.0,
-            5.0, 8.0,
-            3.0, 4.0,
-        ]);
+        let points = DMatrix::from_row_slice(3, 2, &[1.0, 2.0, 5.0, 8.0, 3.0, 4.0]);
 
         let bbox = get_bounding_box(&points).unwrap();
         assert_eq!(bbox, (1.0, 2.0, 5.0, 8.0));

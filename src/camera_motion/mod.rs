@@ -10,18 +10,12 @@
 mod transformations;
 
 pub use transformations::{
-    CoordinateTransformation,
-    NilCoordinateTransformation,
-    TranslationTransformation,
-    TranslationTransformationGetter,
-    TransformationGetter,
+    CoordinateTransformation, NilCoordinateTransformation, TransformationGetter,
+    TranslationTransformation, TranslationTransformationGetter,
 };
 
 #[cfg(feature = "opencv")]
-pub use transformations::{
-    HomographyTransformation,
-    HomographyTransformationGetter,
-};
+pub use transformations::{HomographyTransformation, HomographyTransformationGetter};
 
 #[cfg(feature = "opencv")]
 mod estimator;

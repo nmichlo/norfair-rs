@@ -3,7 +3,8 @@
 use pyo3::prelude::*;
 
 use crate::filter::{
-    FilterFactory, FilterFactoryEnum, OptimizedKalmanFilterFactory, FilterPyKalmanFilterFactory, NoFilterFactory,
+    FilterFactory, FilterFactoryEnum, FilterPyKalmanFilterFactory, NoFilterFactory,
+    OptimizedKalmanFilterFactory,
 };
 
 /// Wrapper enum for filter factories that can be used from Python.
@@ -70,7 +71,13 @@ impl PyOptimizedKalmanFilterFactory {
     #[pyo3(signature = (R=4.0, Q=0.1, pos_variance=10.0, pos_vel_covariance=0.0, vel_variance=1.0))]
     fn new(R: f64, Q: f64, pos_variance: f64, pos_vel_covariance: f64, vel_variance: f64) -> Self {
         Self {
-            inner: OptimizedKalmanFilterFactory::new(R, Q, pos_variance, pos_vel_covariance, vel_variance),
+            inner: OptimizedKalmanFilterFactory::new(
+                R,
+                Q,
+                pos_variance,
+                pos_vel_covariance,
+                vel_variance,
+            ),
         }
     }
 
@@ -163,7 +170,9 @@ impl PyNoFilterFactory {
 /// - None (returns default OptimizedKalmanFilterFactory)
 pub fn extract_filter_factory(obj: Option<&Bound<'_, PyAny>>) -> PyResult<PyFilterFactoryEnum> {
     match obj {
-        None => Ok(PyFilterFactoryEnum::Optimized(OptimizedKalmanFilterFactory::default())),
+        None => Ok(PyFilterFactoryEnum::Optimized(
+            OptimizedKalmanFilterFactory::default(),
+        )),
         Some(py_obj) => {
             if let Ok(f) = py_obj.extract::<PyOptimizedKalmanFilterFactory>() {
                 return Ok(f.to_enum());

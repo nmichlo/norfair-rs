@@ -6,17 +6,22 @@
 use pyo3::prelude::*;
 
 mod detection;
+mod distances;
+mod filters;
 mod tracked_object;
 mod tracker;
-mod filters;
-mod distances;
 mod transforms;
 
 pub use detection::PyDetection;
+pub use distances::{
+    get_distance_by_name, PyBuiltinDistance, PyDistanceFunctionWrapper, PyScalarDistance,
+    PyVectorizedDistance,
+};
+pub use filters::{
+    PyFilterPyKalmanFilterFactory, PyNoFilterFactory, PyOptimizedKalmanFilterFactory,
+};
 pub use tracked_object::PyTrackedObject;
 pub use tracker::PyTracker;
-pub use filters::{PyOptimizedKalmanFilterFactory, PyFilterPyKalmanFilterFactory, PyNoFilterFactory};
-pub use distances::{PyScalarDistance, PyVectorizedDistance, PyBuiltinDistance, PyDistanceFunctionWrapper, get_distance_by_name};
 pub use transforms::PyTranslationTransformation;
 
 /// Python module for norfair-rs.

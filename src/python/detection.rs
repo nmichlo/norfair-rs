@@ -1,10 +1,10 @@
 //! Python wrapper for Detection.
 
-use pyo3::prelude::*;
-use pyo3::exceptions::PyValueError;
-use numpy::{PyArray1, PyArray2, PyArrayMethods, IntoPyArray, PyUntypedArrayMethods};
-use numpy::ndarray::{Array1, Array2};
 use nalgebra::DMatrix;
+use numpy::ndarray::{Array1, Array2};
+use numpy::{IntoPyArray, PyArray1, PyArray2, PyArrayMethods, PyUntypedArrayMethods};
+use pyo3::exceptions::PyValueError;
+use pyo3::prelude::*;
 use std::sync::{Arc, RwLock};
 
 use crate::Detection;
@@ -26,11 +26,9 @@ impl Clone for PyDetection {
     fn clone(&self) -> Self {
         // Clone without the GIL-dependent data field is safe since PyObject is reference-counted
         // and we need to use Python::with_gil to clone properly in PyO3 0.22
-        Python::with_gil(|py| {
-            Self {
-                inner: self.inner.clone(),
-                data: self.data.as_ref().map(|obj| obj.clone_ref(py)),
-            }
+        Python::with_gil(|py| Self {
+            inner: self.inner.clone(),
+            data: self.data.as_ref().map(|obj| obj.clone_ref(py)),
         })
     }
 }
@@ -85,7 +83,8 @@ impl PyDetection {
     ) -> PyResult<Self> {
         // Convert points to float64 numpy array
         let np = py.import_bound("numpy")?;
-        let points_f64 = np.call_method1("asarray", (points,))?
+        let points_f64 = np
+            .call_method1("asarray", (points,))?
             .call_method1("astype", (np.getattr("float64")?,))?;
 
         // Get ndim to check if we need to reshape
@@ -128,9 +127,10 @@ impl PyDetection {
 
         // Convert scores if provided
         let scores_vec: Option<Vec<f64>> = if let Some(s) = scores {
-            let scores_f64 = np.call_method1("asarray", (s,))?
+            let scores_f64 = np
+                .call_method1("asarray", (s,))?
                 .call_method1("astype", (np.getattr("float64")?,))?
-                .call_method0("ravel")?;  // Flatten to 1D
+                .call_method0("ravel")?; // Flatten to 1D
             let scores_arr: Bound<'_, PyArray1<f64>> = scores_f64.extract()?;
             let scores_readonly = scores_arr.readonly();
             let scores_view = scores_readonly.as_array();
@@ -152,9 +152,10 @@ impl PyDetection {
 
         // Convert embedding if provided
         let embedding_vec: Option<Vec<f64>> = if let Some(e) = embedding {
-            let emb_f64 = np.call_method1("asarray", (e,))?
+            let emb_f64 = np
+                .call_method1("asarray", (e,))?
                 .call_method1("astype", (np.getattr("float64")?,))?
-                .call_method0("ravel")?;  // Flatten to 1D
+                .call_method0("ravel")?; // Flatten to 1D
             let emb_arr: Bound<'_, PyArray1<f64>> = emb_f64.extract()?;
             let emb_readonly = emb_arr.readonly();
             let emb_view = emb_readonly.as_array();
@@ -181,9 +182,7 @@ impl PyDetection {
     #[getter]
     fn scores<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyArray1<f64>>> {
         let det = self.inner.read().unwrap();
-        det.scores
-            .as_ref()
-            .map(|s| vec_to_numpy1(py, s))
+        det.scores.as_ref().map(|s| vec_to_numpy1(py, s))
     }
 
     /// Optional class label.
@@ -196,9 +195,7 @@ impl PyDetection {
     #[getter]
     fn embedding<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyArray1<f64>>> {
         let det = self.inner.read().unwrap();
-        det.embedding
-            .as_ref()
-            .map(|e| vec_to_numpy1(py, e))
+        det.embedding.as_ref().map(|e| vec_to_numpy1(py, e))
     }
 
     /// Optional arbitrary user data.
@@ -284,9 +281,13 @@ impl PyDetection {
 }
 
 /// Helper to convert a numpy array to DMatrix
-pub fn numpy_to_dmatrix(py: Python<'_>, arr: &Bound<'_, pyo3::types::PyAny>) -> PyResult<DMatrix<f64>> {
+pub fn numpy_to_dmatrix(
+    py: Python<'_>,
+    arr: &Bound<'_, pyo3::types::PyAny>,
+) -> PyResult<DMatrix<f64>> {
     let np = py.import_bound("numpy")?;
-    let arr_f64 = np.call_method1("asarray", (arr,))?
+    let arr_f64 = np
+        .call_method1("asarray", (arr,))?
         .call_method1("astype", (np.getattr("float64")?,))?;
     let points_arr: Bound<'_, PyArray2<f64>> = arr_f64.extract()?;
     let arr_readonly = points_arr.readonly();

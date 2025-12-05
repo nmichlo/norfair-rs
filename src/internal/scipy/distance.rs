@@ -96,14 +96,8 @@ mod tests {
 
     #[test]
     fn test_cdist_euclidean() {
-        let xa = DMatrix::from_row_slice(2, 2, &[
-            0.0, 0.0,
-            1.0, 0.0,
-        ]);
-        let xb = DMatrix::from_row_slice(2, 2, &[
-            0.0, 1.0,
-            1.0, 1.0,
-        ]);
+        let xa = DMatrix::from_row_slice(2, 2, &[0.0, 0.0, 1.0, 0.0]);
+        let xb = DMatrix::from_row_slice(2, 2, &[0.0, 1.0, 1.0, 1.0]);
 
         let result = cdist(&xa, &xb, "euclidean");
 
@@ -123,14 +117,8 @@ mod tests {
 
     #[test]
     fn test_cdist_manhattan() {
-        let xa = DMatrix::from_row_slice(2, 3, &[
-            1.0, 2.0, 3.0,
-            4.0, 5.0, 6.0,
-        ]);
-        let xb = DMatrix::from_row_slice(2, 3, &[
-            1.0, 1.0, 1.0,
-            2.0, 2.0, 2.0,
-        ]);
+        let xa = DMatrix::from_row_slice(2, 3, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let xb = DMatrix::from_row_slice(2, 3, &[1.0, 1.0, 1.0, 2.0, 2.0, 2.0]);
 
         let result = cdist(&xa, &xb, "manhattan");
 
@@ -208,10 +196,7 @@ mod tests {
 
     #[test]
     fn test_cdist_sqeuclidean() {
-        let xa = DMatrix::from_row_slice(2, 2, &[
-            0.0, 0.0,
-            3.0, 4.0,
-        ]);
+        let xa = DMatrix::from_row_slice(2, 2, &[0.0, 0.0, 3.0, 4.0]);
         let xb = DMatrix::from_row_slice(1, 2, &[0.0, 0.0]);
 
         let result = cdist(&xa, &xb, "sqeuclidean");
@@ -226,14 +211,8 @@ mod tests {
 
     #[test]
     fn test_cdist_chebyshev() {
-        let xa = DMatrix::from_row_slice(2, 3, &[
-            1.0, 2.0, 3.0,
-            0.0, 0.0, 0.0,
-        ]);
-        let xb = DMatrix::from_row_slice(2, 3, &[
-            2.0, 1.0, 1.0,
-            5.0, 5.0, 5.0,
-        ]);
+        let xa = DMatrix::from_row_slice(2, 3, &[1.0, 2.0, 3.0, 0.0, 0.0, 0.0]);
+        let xb = DMatrix::from_row_slice(2, 3, &[2.0, 1.0, 1.0, 5.0, 5.0, 5.0]);
 
         let result = cdist(&xa, &xb, "chebyshev");
 
@@ -252,15 +231,8 @@ mod tests {
     #[test]
     fn test_cdist_different_row_counts() {
         // Different number of rows is OK
-        let xa = DMatrix::from_row_slice(3, 2, &[
-            1.0, 2.0,
-            3.0, 4.0,
-            5.0, 6.0,
-        ]);
-        let xb = DMatrix::from_row_slice(2, 2, &[
-            0.0, 0.0,
-            1.0, 1.0,
-        ]);
+        let xa = DMatrix::from_row_slice(3, 2, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let xb = DMatrix::from_row_slice(2, 2, &[0.0, 0.0, 1.0, 1.0]);
 
         let result = cdist(&xa, &xb, "euclidean");
 
@@ -305,14 +277,8 @@ mod tests {
 
     #[test]
     fn test_cdist_identical_vectors() {
-        let xa = DMatrix::from_row_slice(2, 3, &[
-            1.0, 2.0, 3.0,
-            4.0, 5.0, 6.0,
-        ]);
-        let xb = DMatrix::from_row_slice(2, 3, &[
-            1.0, 2.0, 3.0,
-            4.0, 5.0, 6.0,
-        ]);
+        let xa = DMatrix::from_row_slice(2, 3, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let xb = DMatrix::from_row_slice(2, 3, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
 
         for metric in &["euclidean", "manhattan", "sqeuclidean", "chebyshev"] {
             let result = cdist(&xa, &xb, metric);
@@ -322,7 +288,10 @@ mod tests {
                 assert!(
                     result[(i, i)].abs() < 1e-10,
                     "Distance between identical vectors should be 0 for {}, got {} at ({},{})",
-                    metric, result[(i, i)], i, i
+                    metric,
+                    result[(i, i)],
+                    i,
+                    i
                 );
             }
         }

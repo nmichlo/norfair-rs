@@ -3,9 +3,9 @@
 //! This filter maintains full covariance matrices, matching the behavior
 //! of Python's filterpy library.
 
-use nalgebra::{DMatrix, DVector};
 use super::traits::{Filter, FilterFactory};
 use crate::internal::filterpy::KalmanFilter as InternalKalmanFilter;
+use nalgebra::{DMatrix, DVector};
 
 /// FilterPy-compatible Kalman filter.
 ///

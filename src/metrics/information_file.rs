@@ -1,9 +1,9 @@
 //! MOTChallenge seqinfo.ini parser.
 
+use crate::{Error, Result};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
-use crate::{Error, Result};
 
 /// Parser for MOTChallenge seqinfo.ini files.
 ///
@@ -36,7 +36,7 @@ impl InformationFile {
         })?;
 
         let reader = BufReader::new(file);
-        let lines: Vec<String> = reader.lines().filter_map(|l| l.ok()).collect();
+        let lines: Vec<String> = reader.lines().map_while(|l| l.ok()).collect();
 
         Ok(Self { path, lines })
     }

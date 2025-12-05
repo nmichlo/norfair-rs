@@ -2,6 +2,7 @@
 //!
 //! Ported from py-motmetrics IoU distance computation.
 //! License: MIT (Christoph Heindl, Jack Valmadre)
+#![allow(dead_code)]
 
 use nalgebra::DMatrix;
 
@@ -79,7 +80,10 @@ pub fn iou_distance(box1: &[f64], box2: &[f64]) -> f64 {
 ///
 /// # Returns
 /// Distance matrix [numGT][numPred] where each element is IoU distance (1.0 - IoU)
-pub fn compute_iou_distance_matrix(gt_bboxes: &[Vec<f64>], pred_bboxes: &[Vec<f64>]) -> Vec<Vec<f64>> {
+pub fn compute_iou_distance_matrix(
+    gt_bboxes: &[Vec<f64>],
+    pred_bboxes: &[Vec<f64>],
+) -> Vec<Vec<f64>> {
     let num_gt = gt_bboxes.len();
     let num_pred = pred_bboxes.len();
 
@@ -360,7 +364,9 @@ mod tests {
                 assert!(
                     dist >= 0.0 && dist <= 1.0,
                     "Distance[{}][{}] = {} outside valid range [0, 1]",
-                    i, j, dist
+                    i,
+                    j,
+                    dist
                 );
             }
         }

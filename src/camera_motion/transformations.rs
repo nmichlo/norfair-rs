@@ -1,7 +1,7 @@
 //! Coordinate transformation implementations.
 
-use std::collections::HashMap;
 use nalgebra::DMatrix;
+use std::collections::HashMap;
 
 /// Trait for transforming between relative and absolute coordinates.
 ///
@@ -33,7 +33,11 @@ pub trait TransformationGetter: Send + Sync {
     ///
     /// # Returns
     /// Tuple of (should_update_reference, transformation)
-    fn call(&mut self, curr_pts: &DMatrix<f64>, prev_pts: &DMatrix<f64>) -> (bool, Option<Box<dyn CoordinateTransformation>>);
+    fn call(
+        &mut self,
+        curr_pts: &DMatrix<f64>,
+        prev_pts: &DMatrix<f64>,
+    ) -> (bool, Option<Box<dyn CoordinateTransformation>>);
 }
 
 /// No-op transformation that returns points unchanged.
@@ -134,12 +138,19 @@ impl TranslationTransformationGetter {
 }
 
 impl TransformationGetter for TranslationTransformationGetter {
-    fn call(&mut self, curr_pts: &DMatrix<f64>, prev_pts: &DMatrix<f64>) -> (bool, Option<Box<dyn CoordinateTransformation>>) {
+    fn call(
+        &mut self,
+        curr_pts: &DMatrix<f64>,
+        prev_pts: &DMatrix<f64>,
+    ) -> (bool, Option<Box<dyn CoordinateTransformation>>) {
         let curr_rows = curr_pts.nrows();
         let prev_rows = prev_pts.nrows();
 
         if curr_rows != prev_rows || curr_pts.ncols() != 2 || prev_pts.ncols() != 2 {
-            return (true, Some(Box::new(TranslationTransformation::new([0.0, 0.0]))));
+            return (
+                true,
+                Some(Box::new(TranslationTransformation::new([0.0, 0.0]))),
+            );
         }
 
         // Step 1: Calculate flow = currPts - prevPts
@@ -152,12 +163,15 @@ impl TransformationGetter for TranslationTransformationGetter {
         }
 
         // Step 2: Bin the flow vectors (round to nearest bin_size)
-        let binned_flow: Vec<[f64; 2]> = flow.iter().map(|f| {
-            [
-                (f[0] / self.bin_size).round() * self.bin_size,
-                (f[1] / self.bin_size).round() * self.bin_size,
-            ]
-        }).collect();
+        let binned_flow: Vec<[f64; 2]> = flow
+            .iter()
+            .map(|f| {
+                [
+                    (f[0] / self.bin_size).round() * self.bin_size,
+                    (f[1] / self.bin_size).round() * self.bin_size,
+                ]
+            })
+            .collect();
 
         // Step 3: Find mode (most common flow vector)
         let mut flow_counts: HashMap<String, usize> = HashMap::new();
@@ -196,7 +210,10 @@ impl TransformationGetter for TranslationTransformationGetter {
             self.data = Some(flow_mode);
         }
 
-        (update_prvs, Some(Box::new(TranslationTransformation::new(flow_mode))))
+        (
+            update_prvs,
+            Some(Box::new(TranslationTransformation::new(flow_mode))),
+        )
     }
 }
 
@@ -225,8 +242,9 @@ impl HomographyTransformation {
         }
 
         // Compute inverse
-        let inverse = homography_matrix.clone().try_inverse()
-            .ok_or_else(|| crate::Error::TransformError("cannot invert homography matrix".to_string()))?;
+        let inverse = homography_matrix.clone().try_inverse().ok_or_else(|| {
+            crate::Error::TransformError("cannot invert homography matrix".to_string())
+        })?;
 
         Ok(Self {
             homography_matrix,
@@ -235,7 +253,11 @@ impl HomographyTransformation {
     }
 
     /// Apply homography transformation to 2D points.
-    fn transform_points(&self, points: &DMatrix<f64>, transform_matrix: &DMatrix<f64>) -> DMatrix<f64> {
+    fn transform_points(
+        &self,
+        points: &DMatrix<f64>,
+        transform_matrix: &DMatrix<f64>,
+    ) -> DMatrix<f64> {
         if points.ncols() != 2 {
             return points.clone();
         }
@@ -248,9 +270,15 @@ impl HomographyTransformation {
             let y = points[(i, 1)];
 
             // Apply homogeneous transformation: [x', y', w'] = H * [x, y, 1]^T
-            let x_prime = transform_matrix[(0, 0)] * x + transform_matrix[(0, 1)] * y + transform_matrix[(0, 2)];
-            let y_prime = transform_matrix[(1, 0)] * x + transform_matrix[(1, 1)] * y + transform_matrix[(1, 2)];
-            let w_prime = transform_matrix[(2, 0)] * x + transform_matrix[(2, 1)] * y + transform_matrix[(2, 2)];
+            let x_prime = transform_matrix[(0, 0)] * x
+                + transform_matrix[(0, 1)] * y
+                + transform_matrix[(0, 2)];
+            let y_prime = transform_matrix[(1, 0)] * x
+                + transform_matrix[(1, 1)] * y
+                + transform_matrix[(1, 2)];
+            let w_prime = transform_matrix[(2, 0)] * x
+                + transform_matrix[(2, 1)] * y
+                + transform_matrix[(2, 2)];
 
             // Perspective division
             let w = if w_prime == 0.0 { 0.0000001 } else { w_prime };
@@ -315,7 +343,11 @@ impl HomographyTransformationGetter {
 
 #[cfg(feature = "opencv")]
 impl TransformationGetter for HomographyTransformationGetter {
-    fn call(&mut self, _curr_pts: &DMatrix<f64>, _prev_pts: &DMatrix<f64>) -> (bool, Option<Box<dyn CoordinateTransformation>>) {
+    fn call(
+        &mut self,
+        _curr_pts: &DMatrix<f64>,
+        _prev_pts: &DMatrix<f64>,
+    ) -> (bool, Option<Box<dyn CoordinateTransformation>>) {
         // TODO: Implement using OpenCV's findHomography
         // This requires opencv crate integration
         (true, None)
@@ -347,18 +379,20 @@ mod tests {
         // Test that nil transformation returns points unchanged
         let nil_trans = NilCoordinateTransformation;
 
-        let points = DMatrix::from_row_slice(3, 2, &[
-            1.0, 2.0,
-            3.0, 4.0,
-            5.0, 6.0,
-        ]);
+        let points = DMatrix::from_row_slice(3, 2, &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
 
         // Both operations should return original points (by value, not reference in Rust)
         let abs_points = nil_trans.rel_to_abs(&points);
-        assert_eq!(abs_points, points, "NilTransformation RelToAbs should return same values");
+        assert_eq!(
+            abs_points, points,
+            "NilTransformation RelToAbs should return same values"
+        );
 
         let rel_points = nil_trans.abs_to_rel(&points);
-        assert_eq!(rel_points, points, "NilTransformation AbsToRel should return same values");
+        assert_eq!(
+            rel_points, points,
+            "NilTransformation AbsToRel should return same values"
+        );
     }
 
     // ===== TranslationTransformation Tests =====
@@ -402,26 +436,24 @@ mod tests {
         let trans = TranslationTransformation::new(movement);
 
         // Original points
-        let points = DMatrix::from_row_slice(3, 2, &[
-            0.0, 0.0,
-            10.0, 10.0,
-            20.0, 30.0,
-        ]);
+        let points = DMatrix::from_row_slice(3, 2, &[0.0, 0.0, 10.0, 10.0, 20.0, 30.0]);
 
         // Forward: RelToAbs (subtract movement)
         let abs_points = trans.rel_to_abs(&points);
 
         // Expected: points - movement
-        let expected = DMatrix::from_row_slice(3, 2, &[
-            -10.0, -20.0,
-            0.0, -10.0,
-            10.0, 10.0,
-        ]);
+        let expected = DMatrix::from_row_slice(3, 2, &[-10.0, -20.0, 0.0, -10.0, 10.0, 10.0]);
 
         for i in 0..3 {
             for j in 0..2 {
-                assert!((abs_points[(i, j)] - expected[(i, j)]).abs() < 1e-10,
-                    "RelToAbs incorrect at ({}, {}): got {}, expected {}", i, j, abs_points[(i, j)], expected[(i, j)]);
+                assert!(
+                    (abs_points[(i, j)] - expected[(i, j)]).abs() < 1e-10,
+                    "RelToAbs incorrect at ({}, {}): got {}, expected {}",
+                    i,
+                    j,
+                    abs_points[(i, j)],
+                    expected[(i, j)]
+                );
             }
         }
 
@@ -431,8 +463,14 @@ mod tests {
         // Should get back original points
         for i in 0..3 {
             for j in 0..2 {
-                assert!((rel_points[(i, j)] - points[(i, j)]).abs() < 1e-10,
-                    "AbsToRel didn't invert RelToAbs at ({}, {}): got {}, expected {}", i, j, rel_points[(i, j)], points[(i, j)]);
+                assert!(
+                    (rel_points[(i, j)] - points[(i, j)]).abs() < 1e-10,
+                    "AbsToRel didn't invert RelToAbs at ({}, {}): got {}, expected {}",
+                    i,
+                    j,
+                    rel_points[(i, j)],
+                    points[(i, j)]
+                );
             }
         }
     }
@@ -444,25 +482,26 @@ mod tests {
         let movement = [0.0, 0.0];
         let trans = TranslationTransformation::new(movement);
 
-        let points = DMatrix::from_row_slice(2, 2, &[
-            5.0, 10.0,
-            15.0, 20.0,
-        ]);
+        let points = DMatrix::from_row_slice(2, 2, &[5.0, 10.0, 15.0, 20.0]);
 
         // Both operations should return original points
         let abs_points = trans.rel_to_abs(&points);
         for i in 0..2 {
             for j in 0..2 {
-                assert!((abs_points[(i, j)] - points[(i, j)]).abs() < 1e-10,
-                    "RelToAbs with zero movement should return original points");
+                assert!(
+                    (abs_points[(i, j)] - points[(i, j)]).abs() < 1e-10,
+                    "RelToAbs with zero movement should return original points"
+                );
             }
         }
 
         let rel_points = trans.abs_to_rel(&points);
         for i in 0..2 {
             for j in 0..2 {
-                assert!((rel_points[(i, j)] - points[(i, j)]).abs() < 1e-10,
-                    "AbsToRel with zero movement should return original points");
+                assert!(
+                    (rel_points[(i, j)] - points[(i, j)]).abs() < 1e-10,
+                    "AbsToRel with zero movement should return original points"
+                );
             }
         }
     }
@@ -494,27 +533,32 @@ mod tests {
         let mut getter = TranslationTransformationGetter::new(0.2, 0.9);
 
         // Previous points
-        let prev_pts = DMatrix::from_row_slice(5, 2, &[
-            0.0, 0.0,
-            10.0, 10.0,
-            20.0, 20.0,
-            30.0, 30.0,
-            40.0, 40.0,
-        ]);
+        let prev_pts = DMatrix::from_row_slice(
+            5,
+            2,
+            &[0.0, 0.0, 10.0, 10.0, 20.0, 20.0, 30.0, 30.0, 40.0, 40.0],
+        );
 
         // Current points: 4 points moved by (5, 5), 1 outlier moved by (1, 1)
-        let curr_pts = DMatrix::from_row_slice(5, 2, &[
-            5.0, 5.0,    // moved by (5, 5)
-            15.0, 15.0,  // moved by (5, 5)
-            25.0, 25.0,  // moved by (5, 5)
-            35.0, 35.0,  // moved by (5, 5)
-            41.0, 41.0,  // outlier: moved by (1, 1)
-        ]);
+        let curr_pts = DMatrix::from_row_slice(
+            5,
+            2,
+            &[
+                5.0, 5.0, // moved by (5, 5)
+                15.0, 15.0, // moved by (5, 5)
+                25.0, 25.0, // moved by (5, 5)
+                35.0, 35.0, // moved by (5, 5)
+                41.0, 41.0, // outlier: moved by (1, 1)
+            ],
+        );
 
         let (update_ref, trans) = getter.call(&curr_pts, &prev_pts);
 
         // 4 out of 5 points = 80% < 90% threshold, so should update reference
-        assert!(update_ref, "Expected reference frame update (proportion < threshold)");
+        assert!(
+            update_ref,
+            "Expected reference frame update (proportion < threshold)"
+        );
 
         // Check transformation exists
         let trans = trans.expect("Expected TranslationTransformation");
@@ -530,10 +574,18 @@ mod tests {
         let expected_x = -5.0;
         let expected_y = -5.0;
 
-        assert!((result[(0, 0)] - expected_x).abs() < 0.3,
-            "Mode X incorrect: got {:.2}, expected {:.2}", result[(0, 0)], expected_x);
-        assert!((result[(0, 1)] - expected_y).abs() < 0.3,
-            "Mode Y incorrect: got {:.2}, expected {:.2}", result[(0, 1)], expected_y);
+        assert!(
+            (result[(0, 0)] - expected_x).abs() < 0.3,
+            "Mode X incorrect: got {:.2}, expected {:.2}",
+            result[(0, 0)],
+            expected_x
+        );
+        assert!(
+            (result[(0, 1)] - expected_y).abs() < 0.3,
+            "Mode Y incorrect: got {:.2}, expected {:.2}",
+            result[(0, 1)],
+            expected_y
+        );
     }
 
     /// Ported from Go: TestTranslationTransformationGetter_Accumulation
@@ -543,47 +595,40 @@ mod tests {
         let mut getter = TranslationTransformationGetter::new(0.1, 0.95);
 
         // First call: all points moved by (10, 10)
-        let prev_pts1 = DMatrix::from_row_slice(3, 2, &[
-            0.0, 0.0,
-            10.0, 10.0,
-            20.0, 20.0,
-        ]);
-        let curr_pts1 = DMatrix::from_row_slice(3, 2, &[
-            10.0, 10.0,
-            20.0, 20.0,
-            30.0, 30.0,
-        ]);
+        let prev_pts1 = DMatrix::from_row_slice(3, 2, &[0.0, 0.0, 10.0, 10.0, 20.0, 20.0]);
+        let curr_pts1 = DMatrix::from_row_slice(3, 2, &[10.0, 10.0, 20.0, 20.0, 30.0, 30.0]);
 
         let (update_ref1, trans1) = getter.call(&curr_pts1, &prev_pts1);
 
         // 100% of points used, so NO reference update
-        assert!(!update_ref1, "First call: Expected NO reference update (100% points)");
+        assert!(
+            !update_ref1,
+            "First call: Expected NO reference update (100% points)"
+        );
 
         // Transformation should be (10, 10)
         let trans1 = trans1.expect("First transformation should not be None");
         let test_point = DMatrix::from_row_slice(1, 2, &[0.0, 0.0]);
         let result1 = trans1.rel_to_abs(&test_point);
 
-        assert!((result1[(0, 0)] - (-10.0)).abs() < 0.2,
+        assert!(
+            (result1[(0, 0)] - (-10.0)).abs() < 0.2,
             "First transformation incorrect: got ({:.2}, {:.2}), expected (-10, -10)",
-            result1[(0, 0)], result1[(0, 1)]);
-        assert!((result1[(0, 1)] - (-10.0)).abs() < 0.2,
+            result1[(0, 0)],
+            result1[(0, 1)]
+        );
+        assert!(
+            (result1[(0, 1)] - (-10.0)).abs() < 0.2,
             "First transformation incorrect: got ({:.2}, {:.2}), expected (-10, -10)",
-            result1[(0, 0)], result1[(0, 1)]);
+            result1[(0, 0)],
+            result1[(0, 1)]
+        );
 
         // Second call: all points moved by another (5, 5) from original reference
         // Since reference wasn't updated, we're still comparing to original
         // So accumulated movement is (10, 10) + (5, 5) = (15, 15)
-        let prev_pts2 = DMatrix::from_row_slice(3, 2, &[
-            0.0, 0.0,
-            10.0, 10.0,
-            20.0, 20.0,
-        ]);
-        let curr_pts2 = DMatrix::from_row_slice(3, 2, &[
-            15.0, 15.0,
-            25.0, 25.0,
-            35.0, 35.0,
-        ]);
+        let prev_pts2 = DMatrix::from_row_slice(3, 2, &[0.0, 0.0, 10.0, 10.0, 20.0, 20.0]);
+        let curr_pts2 = DMatrix::from_row_slice(3, 2, &[15.0, 15.0, 25.0, 25.0, 35.0, 35.0]);
 
         let (update_ref2, trans2) = getter.call(&curr_pts2, &prev_pts2);
 
@@ -593,12 +638,18 @@ mod tests {
         let trans2 = trans2.expect("Second transformation should not be None");
         let result2 = trans2.rel_to_abs(&test_point);
 
-        assert!((result2[(0, 0)] - (-15.0)).abs() < 0.3,
+        assert!(
+            (result2[(0, 0)] - (-15.0)).abs() < 0.3,
             "Accumulated transformation incorrect: got ({:.2}, {:.2}), expected (-15, -15)",
-            result2[(0, 0)], result2[(0, 1)]);
-        assert!((result2[(0, 1)] - (-15.0)).abs() < 0.3,
+            result2[(0, 0)],
+            result2[(0, 1)]
+        );
+        assert!(
+            (result2[(0, 1)] - (-15.0)).abs() < 0.3,
             "Accumulated transformation incorrect: got ({:.2}, {:.2}), expected (-15, -15)",
-            result2[(0, 0)], result2[(0, 1)]);
+            result2[(0, 0)],
+            result2[(0, 1)]
+        );
     }
 
     /// Ported from Go: TestTranslationTransformationGetter_ReferenceUpdate
@@ -607,37 +658,34 @@ mod tests {
         // Test that reference updates when proportion drops below threshold
         let mut getter = TranslationTransformationGetter::new(0.2, 0.8);
 
-        let prev_pts = DMatrix::from_row_slice(10, 2, &[
-            0.0, 0.0,
-            1.0, 1.0,
-            2.0, 2.0,
-            3.0, 3.0,
-            4.0, 4.0,
-            5.0, 5.0,
-            6.0, 6.0,
-            7.0, 7.0,
-            8.0, 8.0,
-            9.0, 9.0,
-        ]);
+        let prev_pts = DMatrix::from_row_slice(
+            10,
+            2,
+            &[
+                0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0, 5.0, 5.0, 6.0, 6.0, 7.0, 7.0,
+                8.0, 8.0, 9.0, 9.0,
+            ],
+        );
 
         // Only 7 out of 10 points move by (10, 10), rest are outliers
         // 70% < 80% threshold, so should update reference
-        let curr_pts = DMatrix::from_row_slice(10, 2, &[
-            10.0, 10.0,
-            11.0, 11.0,
-            12.0, 12.0,
-            13.0, 13.0,
-            14.0, 14.0,
-            15.0, 15.0,
-            16.0, 16.0,
-            5.0, 7.0,   // outlier
-            6.0, 3.0,   // outlier
-            9.0, 12.0,  // outlier
-        ]);
+        let curr_pts = DMatrix::from_row_slice(
+            10,
+            2,
+            &[
+                10.0, 10.0, 11.0, 11.0, 12.0, 12.0, 13.0, 13.0, 14.0, 14.0, 15.0, 15.0, 16.0, 16.0,
+                5.0, 7.0, // outlier
+                6.0, 3.0, // outlier
+                9.0, 12.0, // outlier
+            ],
+        );
 
         let (update_ref, _) = getter.call(&curr_pts, &prev_pts);
 
-        assert!(update_ref, "Expected reference update when proportion < threshold");
+        assert!(
+            update_ref,
+            "Expected reference update when proportion < threshold"
+        );
     }
 
     /// Ported from Go: TestTranslationTransformationGetter_SinglePoint
@@ -653,19 +701,28 @@ mod tests {
         let (update_ref, trans) = getter.call(&curr_pts, &prev_pts);
 
         // 100% of points used (only 1 point), so should NOT update
-        assert!(!update_ref, "Expected NO reference update with single perfect match");
+        assert!(
+            !update_ref,
+            "Expected NO reference update with single perfect match"
+        );
 
         // Transformation should be (5, 5)
         let trans = trans.expect("Transformation should not be None");
         let test_point = DMatrix::from_row_slice(1, 2, &[0.0, 0.0]);
         let result = trans.rel_to_abs(&test_point);
 
-        assert!((result[(0, 0)] - (-5.0)).abs() < 0.3,
+        assert!(
+            (result[(0, 0)] - (-5.0)).abs() < 0.3,
             "Single point transformation incorrect: got ({:.2}, {:.2}), expected (-5, -5)",
-            result[(0, 0)], result[(0, 1)]);
-        assert!((result[(0, 1)] - (-5.0)).abs() < 0.3,
+            result[(0, 0)],
+            result[(0, 1)]
+        );
+        assert!(
+            (result[(0, 1)] - (-5.0)).abs() < 0.3,
             "Single point transformation incorrect: got ({:.2}, {:.2}), expected (-5, -5)",
-            result[(0, 0)], result[(0, 1)]);
+            result[(0, 0)],
+            result[(0, 1)]
+        );
     }
 
     /// Ported from Go: TestTranslationTransformationGetter_MismatchedDimensions
@@ -675,14 +732,21 @@ mod tests {
         let mut getter = TranslationTransformationGetter::new(0.2, 0.9);
 
         let prev_pts = DMatrix::from_row_slice(3, 2, &[0.0, 0.0, 1.0, 1.0, 2.0, 2.0]);
-        let curr_pts = DMatrix::from_row_slice(5, 2, &[0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0]);
+        let curr_pts =
+            DMatrix::from_row_slice(5, 2, &[0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0]);
 
         // Should not crash, return safe default
         let (update_ref, trans) = getter.call(&curr_pts, &prev_pts);
 
-        assert!(update_ref, "Expected reference update with mismatched dimensions");
+        assert!(
+            update_ref,
+            "Expected reference update with mismatched dimensions"
+        );
 
         // Transformation should exist (default zero transformation)
-        assert!(trans.is_some(), "Expected a transformation even with mismatched dimensions");
+        assert!(
+            trans.is_some(),
+            "Expected a transformation even with mismatched dimensions"
+        );
     }
 }

@@ -3,9 +3,10 @@
 //! Ported from numpy:
 //! - linspace: numpy.linspace
 //! - validate_points, flatten, reshape: array utilities
+#![allow(dead_code)]
 
-use nalgebra::DMatrix;
 use crate::{Error, Result};
+use nalgebra::DMatrix;
 
 /// Generate `n` evenly spaced values between `start` and `end` (inclusive).
 ///
@@ -168,7 +169,11 @@ mod tests {
         let expected = [-10.0, -5.0, 0.0, 5.0, 10.0];
         assert_eq!(result.len(), expected.len());
         for (i, &val) in result.iter().enumerate() {
-            assert!((val - expected[i]).abs() < 1e-10, "Negative range value at {}", i);
+            assert!(
+                (val - expected[i]).abs() < 1e-10,
+                "Negative range value at {}",
+                i
+            );
         }
     }
 
@@ -178,7 +183,11 @@ mod tests {
         let expected = [10.0, 7.5, 5.0, 2.5, 0.0];
         assert_eq!(result.len(), expected.len());
         for (i, &val) in result.iter().enumerate() {
-            assert!((val - expected[i]).abs() < 1e-10, "Reverse range value at {}", i);
+            assert!(
+                (val - expected[i]).abs() < 1e-10,
+                "Reverse range value at {}",
+                i
+            );
         }
     }
 
@@ -188,7 +197,11 @@ mod tests {
         let expected = [0.1, 0.3, 0.5, 0.7, 0.9];
         assert_eq!(result.len(), expected.len());
         for (i, &val) in result.iter().enumerate() {
-            assert!((val - expected[i]).abs() < 1e-10, "Floating-point value at {}", i);
+            assert!(
+                (val - expected[i]).abs() < 1e-10,
+                "Floating-point value at {}",
+                i
+            );
         }
     }
 
@@ -207,7 +220,10 @@ mod tests {
             assert!(
                 result[i] > result[i - 1],
                 "Values not monotonically increasing: result[{}]={}, result[{}]={}",
-                i - 1, result[i - 1], i, result[i]
+                i - 1,
+                result[i - 1],
+                i,
+                result[i]
             );
         }
     }
@@ -219,7 +235,11 @@ mod tests {
         assert_eq!(result.len(), 100);
 
         // Endpoint should be exactly 1.0, not 0.9999999...
-        assert_eq!(result[99], 1.0, "Endpoint should be exactly 1.0, got {:.20}", result[99]);
+        assert_eq!(
+            result[99], 1.0,
+            "Endpoint should be exactly 1.0, got {:.20}",
+            result[99]
+        );
     }
 
     #[test]
@@ -246,7 +266,11 @@ mod tests {
         let expected_step = 0.25e-6;
         for i in 1..(result.len() - 1) {
             let expected = i as f64 * expected_step;
-            assert!((result[i] - expected).abs() < 1e-15, "Small interval value at {}", i);
+            assert!(
+                (result[i] - expected).abs() < 1e-15,
+                "Small interval value at {}",
+                i
+            );
         }
     }
 
@@ -257,7 +281,11 @@ mod tests {
 
         let expected = [0.0, 2.5e9, 5e9, 7.5e9, 1e10];
         for (i, &val) in result.iter().enumerate() {
-            assert!((val - expected[i]).abs() < 1e-3, "Large interval value at {}", i);
+            assert!(
+                (val - expected[i]).abs() < 1e-3,
+                "Large interval value at {}",
+                i
+            );
         }
     }
 
@@ -266,7 +294,12 @@ mod tests {
         // Test cases that match numpy.linspace behavior
         let test_cases: Vec<(f64, f64, usize, Vec<f64>)> = vec![
             (0.0, 10.0, 5, vec![0.0, 2.5, 5.0, 7.5, 10.0]),
-            (-5.0, 5.0, 11, vec![-5.0, -4.0, -3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0]),
+            (
+                -5.0,
+                5.0,
+                11,
+                vec![-5.0, -4.0, -3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0],
+            ),
             (0.0, 1.0, 3, vec![0.0, 0.5, 1.0]),
             (10.0, 0.0, 6, vec![10.0, 8.0, 6.0, 4.0, 2.0, 0.0]),
             (0.0, 0.0, 5, vec![0.0, 0.0, 0.0, 0.0, 0.0]),
@@ -279,14 +312,23 @@ mod tests {
                 result.len(),
                 expected.len(),
                 "Linspace({}, {}, {}): expected length {}, got {}",
-                start, end, n, expected.len(), result.len()
+                start,
+                end,
+                n,
+                expected.len(),
+                result.len()
             );
 
             for (i, &val) in result.iter().enumerate() {
                 assert!(
                     (val - expected[i]).abs() < 1e-10,
                     "Linspace({}, {}, {})[{}]: expected {}, got {}",
-                    start, end, n, i, expected[i], val
+                    start,
+                    end,
+                    n,
+                    i,
+                    expected[i],
+                    val
                 );
             }
         }

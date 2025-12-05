@@ -1,8 +1,8 @@
 //! Detection struct for input to the tracker.
 
-use nalgebra::DMatrix;
-use crate::{Error, Result};
 use crate::internal::numpy::validate_points;
+use crate::{Error, Result};
+use nalgebra::DMatrix;
 
 /// A detection to be tracked.
 ///
@@ -181,12 +181,7 @@ mod tests {
     #[test]
     fn test_detection_with_scores() {
         let points = DMatrix::from_row_slice(2, 2, &[1.0, 2.0, 3.0, 4.0]);
-        let det = Detection::with_config(
-            points,
-            Some(vec![0.9, 0.8]),
-            None,
-            None,
-        ).unwrap();
+        let det = Detection::with_config(points, Some(vec![0.9, 0.8]), None, None).unwrap();
 
         assert_eq!(det.scores.as_ref().unwrap().len(), 2);
     }
@@ -194,12 +189,7 @@ mod tests {
     #[test]
     fn test_detection_with_label() {
         let points = DMatrix::from_row_slice(1, 2, &[1.0, 2.0]);
-        let det = Detection::with_config(
-            points,
-            None,
-            Some("person".to_string()),
-            None,
-        ).unwrap();
+        let det = Detection::with_config(points, None, Some("person".to_string()), None).unwrap();
 
         assert_eq!(det.label.as_ref().unwrap(), "person");
     }

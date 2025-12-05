@@ -1,8 +1,8 @@
 //! MOTChallenge evaluation functions.
 
-use std::path::Path;
-use crate::{Error, Result};
 use super::{InformationFile, MOTAccumulator};
+use crate::{Error, Result};
+use std::path::Path;
 
 /// MOT evaluation metrics.
 #[derive(Debug, Clone, Default)]
@@ -71,8 +71,8 @@ impl MOTMetrics {
             num_switches: acc.num_switches(),
             num_gt_ids: acc.num_gt_ids(),
             num_hyp_ids: acc.num_hyp_ids(),
-            mostly_tracked: 0, // TODO: Implement
-            mostly_lost: 0,    // TODO: Implement
+            mostly_tracked: 0,     // TODO: Implement
+            mostly_lost: 0,        // TODO: Implement
             num_fragmentations: 0, // TODO: Implement
         }
     }
@@ -89,8 +89,8 @@ impl MOTMetrics {
 /// # Returns
 /// MOTMetrics containing evaluation results.
 pub fn eval_mot_challenge<P1: AsRef<Path>, P2: AsRef<Path>>(
-    gt_path: P1,
-    predictions_path: P2,
+    _gt_path: P1,
+    _predictions_path: P2,
     seqinfo_path: Option<&Path>,
     iou_threshold: Option<f64>,
 ) -> Result<MOTMetrics> {

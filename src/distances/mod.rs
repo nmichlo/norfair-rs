@@ -8,19 +8,19 @@
 //! - `ScipyDistance` - wrapper for scipy-style cdist metrics
 //! - Built-in distance functions (frobenius, mean_euclidean, iou, etc.)
 
-mod traits;
-mod scalar;
-mod vectorized;
-mod scipy_wrapper;
-mod functions;
 mod dispatch;
+mod functions;
+mod scalar;
+mod scipy_wrapper;
+mod traits;
+mod vectorized;
 
-pub use traits::Distance;
-pub use scalar::ScalarDistance;
-pub use vectorized::VectorizedDistance;
-pub use scipy_wrapper::ScipyDistance;
+pub use dispatch::{distance_function_by_name, try_distance_function_by_name, DistanceFunction};
 pub use functions::*;
-pub use dispatch::{DistanceFunction, distance_function_by_name, try_distance_function_by_name};
+pub use scalar::ScalarDistance;
+pub use scipy_wrapper::ScipyDistance;
+pub use traits::Distance;
+pub use vectorized::VectorizedDistance;
 
 use crate::{Error, Result};
 
@@ -124,7 +124,10 @@ mod tests {
 
         assert_eq!(matrix.nrows(), 1, "Expected 1 row");
         assert_eq!(matrix.ncols(), 1, "Expected 1 column");
-        assert!((matrix[(0, 0)] - 0.0).abs() < 1e-6, "frobenius distance should be 0");
+        assert!(
+            (matrix[(0, 0)] - 0.0).abs() < 1e-6,
+            "frobenius distance should be 0"
+        );
     }
 
     // ===== VectorizedDistance Wrapper Tests =====
@@ -146,7 +149,10 @@ mod tests {
 
         assert_eq!(matrix.nrows(), 1, "Expected 1 row");
         assert_eq!(matrix.ncols(), 1, "Expected 1 column");
-        assert!((matrix[(0, 0)] - 0.0).abs() < 1e-6, "IoU distance should be 0 for perfect match");
+        assert!(
+            (matrix[(0, 0)] - 0.0).abs() < 1e-6,
+            "IoU distance should be 0 for perfect match"
+        );
     }
 
     // ===== ScipyDistance Wrapper Tests =====
@@ -170,7 +176,10 @@ mod tests {
 
         assert_eq!(matrix.nrows(), 1, "Expected 1 row");
         assert_eq!(matrix.ncols(), 1, "Expected 1 column");
-        assert!((matrix[(0, 0)] - 1.0).abs() < 1e-6, "euclidean distance should be 1.0");
+        assert!(
+            (matrix[(0, 0)] - 1.0).abs() < 1e-6,
+            "euclidean distance should be 1.0"
+        );
     }
 
     // ===== distance_by_name Tests =====

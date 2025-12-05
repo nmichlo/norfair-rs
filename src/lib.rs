@@ -30,14 +30,14 @@
 pub(crate) mod internal;
 
 // Public modules
-pub mod filter;
-pub mod distances;
-pub mod tracker;
-pub mod detection;
-pub mod tracked_object;
-pub mod matching;
 pub mod camera_motion;
+pub mod detection;
+pub mod distances;
+pub mod filter;
+pub mod matching;
 pub mod metrics;
+pub mod tracked_object;
+pub mod tracker;
 pub mod utils;
 
 // Optional modules
@@ -52,12 +52,12 @@ pub mod drawing;
 pub mod python;
 
 // Re-exports for convenience
+pub use camera_motion::CoordinateTransformation;
 pub use detection::Detection;
+pub use distances::{distance_by_name, Distance};
+pub use filter::{Filter, FilterFactory};
 pub use tracked_object::{TrackedObject, TrackedObjectFactory};
 pub use tracker::{Tracker, TrackerConfig};
-pub use filter::{Filter, FilterFactory};
-pub use distances::{Distance, distance_by_name};
-pub use camera_motion::CoordinateTransformation;
 
 // Error types
 pub use crate::error::{Error, Result};

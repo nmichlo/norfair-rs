@@ -3,7 +3,6 @@
 use nalgebra::DMatrix;
 use numpy::ndarray::Array1;
 use numpy::{IntoPyArray, PyArray1, PyArray2};
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use super::detection::{dmatrix_to_numpy, numpy_to_dmatrix, PyDetection};
@@ -190,7 +189,7 @@ impl PyTrackedObject {
     /// Shape: (n_points,)
     #[getter]
     fn detected_at_least_once_points<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<bool>> {
-        Array1::from_vec(self.detected_at_least_once_points.clone()).into_pyarray_bound(py)
+        Array1::from_vec(self.detected_at_least_once_points.clone()).into_pyarray(py)
     }
 
     /// Boolean mask indicating which points are actively tracked.
@@ -198,7 +197,7 @@ impl PyTrackedObject {
     #[getter]
     fn live_points<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<bool>> {
         let live: Vec<bool> = self.point_hit_counter.iter().map(|&c| c > 0).collect();
-        Array1::from_vec(live).into_pyarray_bound(py)
+        Array1::from_vec(live).into_pyarray(py)
     }
 
     /// Whether the object is still in initialization phase.
@@ -228,7 +227,7 @@ impl PyTrackedObject {
     /// Per-point hit counters for partial visibility tracking.
     #[getter]
     fn point_hit_counter<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<i32>> {
-        Array1::from_vec(self.point_hit_counter.clone()).into_pyarray_bound(py)
+        Array1::from_vec(self.point_hit_counter.clone()).into_pyarray(py)
     }
 
     /// Check if hit_counter >= 0.
@@ -258,10 +257,10 @@ impl PyTrackedObject {
     ///
     /// Note: This creates a partial representation since norfair.TrackedObject
     /// requires internal state that cannot be fully replicated.
-    fn to_norfair(&self, py: Python<'_>) -> PyResult<PyObject> {
+    fn to_norfair(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         // norfair.TrackedObject is not directly constructable from Python,
         // so we return a dict with the key attributes instead
-        let dict = pyo3::types::PyDict::new_bound(py);
+        let dict = pyo3::types::PyDict::new(py);
         dict.set_item("id", self.id)?;
         dict.set_item("global_id", self.global_id)?;
         dict.set_item("initializing_id", self.initializing_id)?;
@@ -275,6 +274,6 @@ impl PyTrackedObject {
         dict.set_item("live_points", self.live_points(py))?;
         dict.set_item("is_initializing", self.is_initializing)?;
         dict.set_item("label", self.label.clone())?;
-        Ok(dict.into())
+        Ok(dict.unbind().into_any())
     }
 }

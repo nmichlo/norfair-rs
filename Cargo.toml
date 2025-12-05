@@ -1,6 +1,6 @@
 [package]
 name = "norfair-rs"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2021"
 rust-version = "1.70"
 description = "Object tracking library - Rust port of Python norfair"
@@ -20,28 +20,28 @@ python = ["dep:pyo3", "dep:numpy"]
 
 [dependencies]
 # Numerical computing - using nalgebra for pure Rust, no BLAS required
-nalgebra = "0.33"
+nalgebra = "0.34"
 
 # Stack-allocated small vectors for hot paths
 smallvec = "1.13"
 
 # Error handling
-thiserror = "1.0"
+thiserror = "2.0"
 
 # INI file parsing (for MOTChallenge seqinfo.ini)
 configparser = "3.0"
 
 # Optional: OpenCV bindings for video I/O and drawing
-opencv = { version = "0.93", optional = true }
+opencv = { version = "0.97", optional = true }
 
 # Optional: Python bindings
-pyo3 = { version = "0.22", optional = true, features = ["extension-module", "abi3-py312"] }
-numpy = { version = "0.22", optional = true }
+pyo3 = { version = "0.27", optional = true, features = ["extension-module", "abi3-py312"] }
+numpy = { version = "0.27", optional = true }
 
 [dev-dependencies]
 # Testing
 approx = "0.5"
-criterion = "0.5"
+criterion = "0.8"
 proptest = "1.0"
 tempfile = "3.0"
 

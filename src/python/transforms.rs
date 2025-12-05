@@ -104,7 +104,7 @@ impl PyTranslationTransformation {
     ///     movement_vector: A 2-element array [dx, dy] representing the camera movement.
     #[new]
     fn new(py: Python<'_>, movement_vector: &Bound<'_, pyo3::types::PyAny>) -> PyResult<Self> {
-        let np = py.import_bound("numpy")?;
+        let np = py.import("numpy")?;
         let arr_f64 = np
             .call_method1("asarray", (movement_vector,))?
             .call_method1("astype", (np.getattr("float64")?,))?

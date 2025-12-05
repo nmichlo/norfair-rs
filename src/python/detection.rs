@@ -2,7 +2,7 @@
 
 use nalgebra::DMatrix;
 use numpy::ndarray::{Array1, Array2};
-use numpy::{IntoPyArray, PyArray1, PyArray2, PyArrayMethods, PyUntypedArrayMethods};
+use numpy::{IntoPyArray, PyArray1, PyArray2, PyArrayMethods};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::sync::{Arc, RwLock};
@@ -19,13 +19,13 @@ use crate::Detection;
 pub struct PyDetection {
     pub(crate) inner: Arc<RwLock<Detection>>,
     /// Optional arbitrary user data (stored as Python object).
-    pub(crate) data: Option<PyObject>,
+    pub(crate) data: Option<Py<PyAny>>,
 }
 
 impl Clone for PyDetection {
     fn clone(&self) -> Self {
-        // Clone without the GIL-dependent data field is safe since PyObject is reference-counted
-        // and we need to use Python::with_gil to clone properly in PyO3 0.22
+        // Clone without the GIL-dependent data field is safe since Py<PyAny> is reference-counted
+        // and we need to use Python::with_gil to clone properly
         Python::with_gil(|py| Self {
             inner: self.inner.clone(),
             data: self.data.as_ref().map(|obj| obj.clone_ref(py)),
@@ -43,7 +43,7 @@ impl PyDetection {
     }
 
     /// Create a new PyDetection with data.
-    pub fn from_detection_with_data(det: Detection, data: Option<PyObject>) -> Self {
+    pub fn from_detection_with_data(det: Detection, data: Option<Py<PyAny>>) -> Self {
         Self {
             inner: Arc::new(RwLock::new(det)),
             data,
@@ -77,12 +77,12 @@ impl PyDetection {
         py: Python<'_>,
         points: &Bound<'_, pyo3::types::PyAny>,
         scores: Option<&Bound<'_, pyo3::types::PyAny>>,
-        data: Option<PyObject>,
+        data: Option<Py<PyAny>>,
         label: Option<String>,
         embedding: Option<&Bound<'_, pyo3::types::PyAny>>,
     ) -> PyResult<Self> {
         // Convert points to float64 numpy array
-        let np = py.import_bound("numpy")?;
+        let np = py.import("numpy")?;
         let points_f64 = np
             .call_method1("asarray", (points,))?
             .call_method1("astype", (np.getattr("float64")?,))?;
@@ -200,7 +200,7 @@ impl PyDetection {
 
     /// Optional arbitrary user data.
     #[getter]
-    fn data(&self, py: Python<'_>) -> Option<PyObject> {
+    fn data(&self, py: Python<'_>) -> Option<Py<PyAny>> {
         self.data.as_ref().map(|obj| obj.clone_ref(py))
     }
 
@@ -252,8 +252,8 @@ impl PyDetection {
     ///
     /// Raises:
     ///     ImportError: If norfair is not installed.
-    fn to_norfair(&self, py: Python<'_>) -> PyResult<PyObject> {
-        let norfair = py.import_bound("norfair")?;
+    fn to_norfair(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        let norfair = py.import("norfair")?;
         let detection_cls = norfair.getattr("Detection")?;
 
         // Get our data
@@ -263,7 +263,7 @@ impl PyDetection {
         let embedding = self.embedding(py);
 
         // Build kwargs
-        let kwargs = pyo3::types::PyDict::new_bound(py);
+        let kwargs = pyo3::types::PyDict::new(py);
         kwargs.set_item("points", points)?;
         if let Some(s) = scores {
             kwargs.set_item("scores", s)?;
@@ -276,7 +276,9 @@ impl PyDetection {
         }
 
         // Create norfair Detection
-        detection_cls.call((), Some(&kwargs)).map(|obj| obj.into())
+        detection_cls
+            .call((), Some(&kwargs))
+            .map(|obj| obj.unbind())
     }
 }
 
@@ -285,7 +287,7 @@ pub fn numpy_to_dmatrix(
     py: Python<'_>,
     arr: &Bound<'_, pyo3::types::PyAny>,
 ) -> PyResult<DMatrix<f64>> {
-    let np = py.import_bound("numpy")?;
+    let np = py.import("numpy")?;
     let arr_f64 = np
         .call_method1("asarray", (arr,))?
         .call_method1("astype", (np.getattr("float64")?,))?;
@@ -317,11 +319,11 @@ pub fn dmatrix_to_numpy<'py>(py: Python<'py>, matrix: &DMatrix<f64>) -> Bound<'p
         }
     }
 
-    arr.into_pyarray_bound(py)
+    arr.into_pyarray(py)
 }
 
 /// Helper to convert Vec<f64> to 1D numpy array
 pub fn vec_to_numpy1<'py>(py: Python<'py>, data: &[f64]) -> Bound<'py, PyArray1<f64>> {
     let arr = Array1::from_vec(data.to_vec());
-    arr.into_pyarray_bound(py)
+    arr.into_pyarray(py)
 }

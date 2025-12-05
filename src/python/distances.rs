@@ -91,9 +91,9 @@ impl PyDistanceEnum {
 
                 // Convert to numpy arrays
                 let dim = cand_points.first().map(|v| v.len()).unwrap_or(0);
-                let cand_arr = PyArray2::from_vec2_bound(py, &cand_points)
+                let cand_arr = PyArray2::from_vec2(py, &cand_points)
                     .map_err(|e| PyValueError::new_err(e.to_string()))?;
-                let obj_arr = PyArray2::from_vec2_bound(py, &obj_points)
+                let obj_arr = PyArray2::from_vec2(py, &obj_points)
                     .map_err(|e| PyValueError::new_err(e.to_string()))?;
 
                 // Call the Python function
@@ -240,7 +240,7 @@ impl PyDistanceFunctionWrapper {
         &self,
         py: Python<'py>,
         args: &Bound<'py, pyo3::types::PyTuple>,
-    ) -> PyResult<PyObject> {
+    ) -> PyResult<Py<PyAny>> {
         match self.name.as_str() {
             "iou" => {
                 // Vectorized: expects (candidates, objects) arrays
@@ -252,7 +252,7 @@ impl PyDistanceFunctionWrapper {
                 let candidates = args.get_item(0)?;
                 let objects = args.get_item(1)?;
                 let result = iou_inner(py, &candidates, &objects)?;
-                Ok(result.into())
+                Ok(result.unbind().into_any())
             }
             _ => {
                 // Scalar: expects (detection, tracked_object)
@@ -311,7 +311,7 @@ impl PyDistanceFunctionWrapper {
                         )));
                     }
                 };
-                Ok(distance.into_py(py))
+                Ok(distance.into_pyobject(py)?.unbind().into_any())
             }
         }
     }

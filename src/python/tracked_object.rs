@@ -1,12 +1,13 @@
 //! Python wrapper for TrackedObject.
 
 use pyo3::prelude::*;
+use pyo3::exceptions::PyValueError;
 use numpy::{PyArray1, PyArray2, IntoPyArray};
 use numpy::ndarray::Array1;
 use nalgebra::DMatrix;
 
 use crate::TrackedObject;
-use super::detection::{PyDetection, dmatrix_to_numpy};
+use super::detection::{PyDetection, dmatrix_to_numpy, numpy_to_dmatrix};
 
 /// A tracked object maintained by the tracker.
 ///
@@ -31,11 +32,21 @@ pub struct PyTrackedObject {
     pub(crate) estimate_velocity: DMatrix<f64>,
     pub(crate) is_initializing: bool,
     pub(crate) past_detections: Vec<PyDetection>,
+    /// Optional coordinate transformation for converting between absolute/relative
+    pub(crate) coord_transform: Option<Py<PyAny>>,
 }
 
 impl PyTrackedObject {
     /// Create a PyTrackedObject from a reference to a Rust TrackedObject.
     pub fn from_tracked_object(obj: &TrackedObject) -> Self {
+        Self::from_tracked_object_with_transform(obj, None)
+    }
+
+    /// Create a PyTrackedObject with an optional coordinate transformation.
+    pub fn from_tracked_object_with_transform(
+        obj: &TrackedObject,
+        coord_transform: Option<Py<PyAny>>,
+    ) -> Self {
         let last_detection = obj.last_detection.as_ref().map(|d| PyDetection::from_detection(d.clone()));
         let past_detections = obj
             .past_detections
@@ -58,6 +69,7 @@ impl PyTrackedObject {
             estimate_velocity: obj.estimate_velocity.clone(),
             is_initializing: obj.is_initializing,
             past_detections,
+            coord_transform,
         }
     }
 }
@@ -96,9 +108,11 @@ impl PyTrackedObject {
 
     /// Current state estimate (position) from Kalman filter.
     /// Shape: (n_points, n_dims)
-    #[getter]
-    fn estimate<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
-        dmatrix_to_numpy(py, &self.estimate)
+    /// Returns coordinates in relative (camera frame) by default, like get_estimate().
+    #[getter(estimate)]
+    fn estimate_getter<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        // Like Python norfair, estimate property returns get_estimate() which defaults to relative
+        self.get_estimate(py, false)
     }
 
     /// Current velocity estimate from Kalman filter.
@@ -106,6 +120,40 @@ impl PyTrackedObject {
     #[getter]
     fn estimate_velocity<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f64>> {
         dmatrix_to_numpy(py, &self.estimate_velocity)
+    }
+
+    /// Get the position estimate in absolute or relative coordinates.
+    ///
+    /// Args:
+    ///     absolute: If True, returns coordinates in world frame.
+    ///               If False (default), returns coordinates in camera frame.
+    ///
+    /// Returns:
+    ///     Position estimate array of shape (n_points, n_dims).
+    ///
+    /// Note:
+    ///     If no coordinate transformation was provided to the tracker,
+    ///     both absolute=True and absolute=False return the same raw coordinates.
+    #[pyo3(signature = (absolute=false))]
+    fn get_estimate<'py>(&self, py: Python<'py>, absolute: bool) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let estimate_np = dmatrix_to_numpy(py, &self.estimate);
+
+        if let Some(ref transform) = self.coord_transform {
+            if absolute {
+                // estimate is already in absolute coordinates
+                Ok(estimate_np)
+            } else {
+                // Convert from absolute to relative using abs_to_rel
+                let result = transform.call_method1(py, "abs_to_rel", (estimate_np,))?;
+                let result_arr = numpy_to_dmatrix(py, result.bind(py))?;
+                Ok(dmatrix_to_numpy(py, &result_arr))
+            }
+        } else {
+            // No coordinate transformation - estimate is in "raw" coordinates
+            // Both absolute=True and absolute=False return the same value since
+            // there's no transform to distinguish them
+            Ok(estimate_np)
+        }
     }
 
     /// Most recent matched detection.

@@ -175,10 +175,12 @@ impl PyTracker {
         period: i32,
         coord_transformations: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Vec<PyTrackedObject>> {
+        // Keep reference to original PyDetections so we can update them in-place
+        let py_detections = detections.unwrap_or_default();
+
         // Convert detections
-        let rust_detections: Vec<Detection> = detections
-            .unwrap_or_default()
-            .into_iter()
+        let rust_detections: Vec<Detection> = py_detections
+            .iter()
             .map(|d| d.get_detection())
             .collect();
 
@@ -187,6 +189,17 @@ impl PyTracker {
         let transform_ref: Option<&dyn crate::camera_motion::CoordinateTransformation> =
             transform.as_ref().map(|t| t.as_transform());
 
+        // If we have a coordinate transformation, update the original PyDetection objects
+        // with their absolute_points (like Python norfair does)
+        if let Some(ref t) = transform {
+            for py_det in &py_detections {
+                let det = py_det.inner.read().unwrap();
+                let abs_points = t.as_transform().rel_to_abs(&det.points);
+                drop(det);  // Release read lock
+                py_det.inner.write().unwrap().set_absolute_points(abs_points);
+            }
+        }
+
         // If we have a Python callable distance, we need to handle it specially
         // For now, we use the built-in distance in the Rust tracker
         // TODO: Implement proper Python callable support by wrapping in Distance trait
@@ -194,10 +207,20 @@ impl PyTracker {
         // Update tracker
         let tracked = self.inner.update(rust_detections, period, transform_ref);
 
-        // Convert to Python objects
+        // Get Python coordinate transformation reference if provided
+        let py_coord_transform: Option<Py<PyAny>> = coord_transformations
+            .filter(|obj| !obj.is_none())
+            .map(|obj| obj.clone().unbind());
+
+        // Convert to Python objects, passing the coordinate transformation
         let py_tracked: Vec<PyTrackedObject> = tracked
             .into_iter()
-            .map(|obj| PyTrackedObject::from_tracked_object(obj))
+            .map(|obj| {
+                PyTrackedObject::from_tracked_object_with_transform(
+                    obj,
+                    py_coord_transform.as_ref().map(|t| t.clone_ref(py)),
+                )
+            })
             .collect();
 
         Ok(py_tracked)
@@ -219,10 +242,12 @@ impl PyTracker {
     /// Number of currently active tracked objects.
     #[getter]
     fn current_object_count(&self) -> usize {
+        // Count objects that are initialized AND have positive hit_counter
+        // (matches Rust tracker's active_objects() logic)
         self.inner
             .tracked_objects
             .iter()
-            .filter(|obj| !obj.is_initializing)
+            .filter(|obj| !obj.is_initializing && obj.hit_counter >= 0)
             .count()
     }
 

@@ -2,6 +2,7 @@
 
 use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
+use nalgebra::DMatrix;
 use numpy::{PyArray1, PyArray2, PyArrayMethods};
 
 use crate::camera_motion::{
@@ -10,10 +11,69 @@ use crate::camera_motion::{
 
 use super::detection::{numpy_to_dmatrix, dmatrix_to_numpy};
 
+/// A wrapper for duck-typed Python coordinate transformations.
+///
+/// This wraps any Python object that has `abs_to_rel` and `rel_to_abs` methods.
+#[derive(Debug)]
+pub struct PyCallableTransformation {
+    /// The Python object with abs_to_rel and rel_to_abs methods
+    py_obj: Py<PyAny>,
+}
+
+impl PyCallableTransformation {
+    pub fn new(py_obj: Py<PyAny>) -> Self {
+        Self { py_obj }
+    }
+}
+
+// Py<PyAny> is Send (but not Sync by default), but we ensure thread safety
+// by always acquiring the GIL before accessing the Python object.
+unsafe impl Send for PyCallableTransformation {}
+unsafe impl Sync for PyCallableTransformation {}
+
+impl CoordinateTransformation for PyCallableTransformation {
+    fn rel_to_abs(&self, points: &DMatrix<f64>) -> DMatrix<f64> {
+        Python::with_gil(|py| {
+            let np_points = dmatrix_to_numpy(py, points);
+            match self.py_obj.call_method1(py, "rel_to_abs", (np_points,)) {
+                Ok(result) => {
+                    match numpy_to_dmatrix(py, result.bind(py)) {
+                        Ok(mat) => mat,
+                        Err(_) => points.clone(), // Fallback on error
+                    }
+                }
+                Err(_) => points.clone(), // Fallback on error
+            }
+        })
+    }
+
+    fn abs_to_rel(&self, points: &DMatrix<f64>) -> DMatrix<f64> {
+        Python::with_gil(|py| {
+            let np_points = dmatrix_to_numpy(py, points);
+            match self.py_obj.call_method1(py, "abs_to_rel", (np_points,)) {
+                Ok(result) => {
+                    match numpy_to_dmatrix(py, result.bind(py)) {
+                        Ok(mat) => mat,
+                        Err(_) => points.clone(), // Fallback on error
+                    }
+                }
+                Err(_) => points.clone(), // Fallback on error
+            }
+        })
+    }
+
+    fn clone_box(&self) -> Box<dyn CoordinateTransformation> {
+        Box::new(PyCallableTransformation {
+            py_obj: Python::with_gil(|py| self.py_obj.clone_ref(py)),
+        })
+    }
+}
+
 /// Enum to hold different transformation implementations
 pub enum PyTransformEnum {
     Translation(TranslationTransformation),
     Nil(NilCoordinateTransformation),
+    PyCallable(PyCallableTransformation),
 }
 
 impl PyTransformEnum {
@@ -21,6 +81,7 @@ impl PyTransformEnum {
         match self {
             PyTransformEnum::Translation(t) => t,
             PyTransformEnum::Nil(t) => t,
+            PyTransformEnum::PyCallable(t) => t,
         }
     }
 }
@@ -120,7 +181,8 @@ impl PyTranslationTransformation {
 /// Extract a coordinate transformation from a Python object.
 ///
 /// Supports:
-/// - PyTranslationTransformation
+/// - PyTranslationTransformation (native norfair_rs type)
+/// - Any Python object with abs_to_rel and rel_to_abs methods (duck-typed)
 /// - None (returns None, meaning no transformation)
 pub fn extract_transform(obj: Option<&Bound<'_, PyAny>>) -> PyResult<Option<PyTransformEnum>> {
     match obj {
@@ -129,11 +191,20 @@ pub fn extract_transform(obj: Option<&Bound<'_, PyAny>>) -> PyResult<Option<PyTr
             if py_obj.is_none() {
                 return Ok(None);
             }
+            // Try native TranslationTransformation first
             if let Ok(t) = py_obj.extract::<PyTranslationTransformation>() {
                 return Ok(Some(t.to_enum()));
             }
+            // Try duck-typed: any object with abs_to_rel and rel_to_abs methods
+            let has_abs_to_rel = py_obj.hasattr("abs_to_rel").unwrap_or(false);
+            let has_rel_to_abs = py_obj.hasattr("rel_to_abs").unwrap_or(false);
+            if has_abs_to_rel && has_rel_to_abs {
+                return Ok(Some(PyTransformEnum::PyCallable(
+                    PyCallableTransformation::new(py_obj.clone().unbind())
+                )));
+            }
             Err(pyo3::exceptions::PyTypeError::new_err(
-                "coord_transformations must be a TranslationTransformation or None"
+                "coord_transformations must have abs_to_rel and rel_to_abs methods, or be None"
             ))
         }
     }

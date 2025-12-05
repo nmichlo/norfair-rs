@@ -34,7 +34,44 @@
 
 ## Current Status
 
-**Tests:** 285 total (277 unit + 2 fixture + 6 integration) - All passing ✅
+**Rust Tests:** 289 total (277 unit + 6 fixture + 6 integration) - All passing ✅
+**Python Tests:** 103 total (98 passed, 5 skipped) - All passing ✅
+  - 12 fixture tests (6 norfair_rs + 6 norfair) verifying cross-implementation consistency
+  - 2 un-skipped distance tests (keypoint_vote, normalized_euclidean) now passing
+  - ReID test (test_reid_hit_counter) fully working with Python callable distance functions
+
+### Comprehensive Fixture Testing (2025-12-05)
+
+Added 4 new fixture test scenarios covering different tracker configurations:
+- `fixture_euclidean_small`: Euclidean distance function with small scenario
+- `fixture_fast_init`: IoU with initialization_delay=0 (immediate initialization)
+- `fixture_iou_occlusion`: IoU on occlusion scenario (no ReID, tests object recovery at hit_counter=0)
+- `fixture_reid_euclidean`: Euclidean distance with ReID enabled on occlusion scenario
+
+**Key bugfix during fixture implementation:**
+- Fixed object categorization timing: `alive_initialized_indices` must be computed BEFORE `tracker_step()` (hit_counter decrement), not after. Python categorizes objects before `tracker_step()` so objects with `hit_counter=0` are still "alive" for matching.
+
+### ReID Implementation Complete (2025-12-05)
+
+Implemented full Re-Identification (ReID) support matching Python norfair behavior:
+
+**Key changes:**
+- Added `initial_period` field to `TrackedObject` (needed for merge hit_counter restore)
+- Added `reid_hit_counter_is_positive()` and `hit_counter_is_positive()` helper methods
+- Added `merge()` and `conditionally_add_to_past_detections()` methods to `TrackedObject`
+- Implemented `Clone` for `TrackedObject` (needed for ReID merge operation)
+- Updated tracker_step loop with ReID counter management (before hit_counter decrement)
+- Updated object cleanup with ReID separation (alive/dead tracking)
+- Added ReID matching stage after regular detection matching
+- Added `get_distances_objects()` method to `DistanceFunction` for object-to-object distances
+- Added `estimate` property alias to `PyDetection` for ReID distance function compatibility
+
+**ReID behavior:**
+1. Objects transition to ReID phase when `hit_counter <= 0` and `reid_hit_counter_max` is set
+2. `reid_hit_counter` decrements each frame while in ReID phase
+3. Objects survive while `reid_hit_counter >= 0`
+4. Dead objects can be revived via ReID matching with new initializing objects
+5. `merge()` transfers state and resets counters, keeping original ID
 
 ### Performance Optimization Complete (2025-12-04)
 
@@ -58,7 +95,7 @@ SEE: ./PLAN_TESTS.md for detailed checklist
 ### Fixture Tests Complete (2025-12-04)
 
 E2E fixture tests verify Rust tracker output matches Python reference:
-- `tests/fixture_tests.rs` - 2 tests (small, medium scenarios)
+- `tests/fixture_tests.rs` - 6 tests (small, medium, euclidean_small, fast_init, iou_occlusion, reid_euclidean)
 - Fixtures generated from Python norfair in `tests/data/fixtures/`
 - Tolerance: 1e-6 for numerical comparisons
 
@@ -298,8 +335,8 @@ See [PLAN_TESTS.md](./PLAN_TESTS.md) for complete test porting checklist.
 | Utils | 6 |
 | Internal (filterpy, scipy, numpy, motmetrics) | 98 |
 | Integration | 6 |
-| Fixture (E2E) | 2 |
-| **Total** | **278** |
+| Fixture (E2E) | 6 |
+| **Total** | **289** |
 
 ---
 

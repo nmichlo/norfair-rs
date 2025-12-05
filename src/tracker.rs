@@ -147,6 +147,7 @@ impl Tracker {
         }
 
         // STAGE 2: Remove dead objects BEFORE predict step (matches Python/Go behavior)
+        // Also categorize objects BEFORE decrement (Python categorizes before tracker_step)
         // With ReID: objects survive while reid_hit_counter >= 0, separate into alive/dead
         // Without ReID: objects with hit_counter < 0 are removed
         let dead_indices: Vec<usize> = if self.config.reid_hit_counter_max.is_none() {
@@ -167,7 +168,28 @@ impl Tracker {
                 .collect()
         };
 
-        // STAGE 3: Age all tracked objects (predict step) - inline to avoid borrow issues
+        // IMPORTANT: Categorize objects BEFORE predict step (Python does this before tracker_step)
+        // This means objects with hit_counter=0 are still considered "alive" for matching this frame
+        // - alive_initialized: hit_counter >= 0, not initializing (participate in regular matching)
+        // - initializing: initializing objects (participate in init matching)
+        // - dead: hit_counter < 0 (only participate in ReID matching via dead_indices computed above)
+        let alive_initialized_indices: Vec<usize> = self
+            .tracked_objects
+            .iter()
+            .enumerate()
+            .filter(|(_, obj)| !obj.is_initializing && obj.hit_counter_is_positive())
+            .map(|(i, _)| i)
+            .collect();
+
+        let initializing_indices: Vec<usize> = self
+            .tracked_objects
+            .iter()
+            .enumerate()
+            .filter(|(_, obj)| obj.is_initializing)
+            .map(|(i, _)| i)
+            .collect();
+
+        // STAGE 3: Age all tracked objects (predict step) - AFTER categorization
         for obj in &mut self.tracked_objects {
             // ReID counter management (BEFORE hit_counter decrement - matches Python)
             if obj.reid_hit_counter.is_none() {
@@ -212,30 +234,19 @@ impl Tracker {
             }
         }
 
-        // Separate initializing and initialized objects
-        let (initialized_indices, initializing_indices): (Vec<_>, Vec<_>) = self
-            .tracked_objects
-            .iter()
-            .enumerate()
-            .partition(|(_, obj)| !obj.is_initializing);
-
-        let initialized_indices: Vec<_> = initialized_indices.into_iter().map(|(i, _)| i).collect();
-        let initializing_indices: Vec<_> =
-            initializing_indices.into_iter().map(|(i, _)| i).collect();
-
-        // Match initialized objects first
+        // Match alive initialized objects first (dead objects only participate in ReID)
         let det_refs: Vec<&Detection> = detections.iter().collect();
-        let init_obj_refs: Vec<&TrackedObject> = initialized_indices
+        let alive_init_obj_refs: Vec<&TrackedObject> = alive_initialized_indices
             .iter()
             .map(|&i| &self.tracked_objects[i])
             .collect();
 
-        let distance_matrix = if !init_obj_refs.is_empty() && !det_refs.is_empty() {
+        let distance_matrix = if !alive_init_obj_refs.is_empty() && !det_refs.is_empty() {
             self.config
                 .distance_function
-                .get_distances(&init_obj_refs, &det_refs)
+                .get_distances(&alive_init_obj_refs, &det_refs)
         } else {
-            DMatrix::zeros(det_refs.len(), init_obj_refs.len())
+            DMatrix::zeros(det_refs.len(), alive_init_obj_refs.len())
         };
 
         let (matched_dets, matched_objs) =
@@ -243,7 +254,7 @@ impl Tracker {
 
         // Update matched initialized objects
         for (&det_idx, &obj_local_idx) in matched_dets.iter().zip(matched_objs.iter()) {
-            let obj_idx = initialized_indices[obj_local_idx];
+            let obj_idx = alive_initialized_indices[obj_local_idx];
             self.hit_object(
                 obj_idx,
                 &detections[det_idx],
@@ -252,11 +263,11 @@ impl Tracker {
             );
         }
 
-        // Get unmatched initialized objects (for ReID)
-        let unmatched_init_obj_indices: Vec<usize> =
-            get_unmatched(initialized_indices.len(), &matched_objs)
+        // Get unmatched alive initialized objects (for ReID)
+        let unmatched_alive_init_indices: Vec<usize> =
+            get_unmatched(alive_initialized_indices.len(), &matched_objs)
                 .into_iter()
-                .map(|i| initialized_indices[i])
+                .map(|i| alive_initialized_indices[i])
                 .collect();
 
         // Get unmatched detections
@@ -304,10 +315,10 @@ impl Tracker {
         }
 
         // STAGE: ReID Matching (if enabled)
-        // Match old objects (unmatched initialized + dead) with new initializing objects that got matched
+        // Match old objects (unmatched alive initialized + dead) with initializing objects that got matched
         if let Some(ref reid_distance) = self.config.reid_distance_function {
-            // Collect objects eligible for ReID: unmatched initialized + dead
-            let reid_object_indices: Vec<usize> = unmatched_init_obj_indices
+            // Collect objects eligible for ReID: unmatched alive initialized + dead
+            let reid_object_indices: Vec<usize> = unmatched_alive_init_indices
                 .iter()
                 .chain(dead_indices.iter())
                 .cloned()
@@ -502,7 +513,9 @@ impl Tracker {
             current_min_distance: None,
             past_detections: VecDeque::new(),
             label: detection.label.clone(),
-            reid_hit_counter: self.config.reid_hit_counter_max,
+            // reid_hit_counter starts as None; only set to reid_hit_counter_max when
+            // transitioning to ReID phase (hit_counter <= 0) - matches Python behavior
+            reid_hit_counter: None,
             estimate: filter.get_state(),
             estimate_velocity: DMatrix::zeros(num_points, dim_points),
             is_initializing: true,

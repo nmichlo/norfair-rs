@@ -124,54 +124,46 @@ AVAILABLE_VECTORIZED_DISTANCES = [
 
 def create_keypoints_voting_distance(
     keypoint_distance_threshold: float,
-    detection_threshold: float = 0.0,
+    detection_threshold: float,
 ) -> Callable[[Detection, TrackedObject], float]:
     """
-    Create a keypoint voting distance function.
+    Construct a keypoint voting distance function configured with the thresholds.
 
-    This distance function counts the number of keypoints that are within a
-    threshold distance from their corresponding predicted positions, and
-    returns 1 - (matched_keypoints / total_keypoints).
+    Count how many points in a detection match the with a tracked_object.
+    A match is considered when distance between the points is < `keypoint_distance_threshold`
+    and the score of the last_detection of the tracked_object is > `detection_threshold`.
+    Notice the if multiple points are tracked, the ith point in detection can only match the ith
+    point in the tracked object.
+
+    Distance is 1 if no point matches and approximates 0 as more points are matched.
 
     Args:
-        keypoint_distance_threshold: Maximum distance for a keypoint to be
-            considered a match.
-        detection_threshold: Minimum score for a keypoint to be considered
-            valid. Default is 0.0.
+        keypoint_distance_threshold: Points closer than this threshold are considered a match.
+        detection_threshold: Detections/objects with score lower than this are ignored.
 
     Returns:
         A distance function that takes (detection, tracked_object) and returns
-        a float distance value in [0, 1].
+        a float distance value.
     """
 
-    def voting_distance(detection: Detection, tracked_object: TrackedObject) -> float:
-        det_points = detection.points
-        obj_estimate = tracked_object.estimate
-        det_scores = detection.scores
+    def keypoints_voting_distance(detection: Detection, tracked_object: TrackedObject) -> float:
+        distances = np.linalg.norm(detection.points - tracked_object.estimate, axis=1)
+        # Get scores from last_detection if available, otherwise use detection scores
+        last_det_scores = getattr(tracked_object, "last_detection", None)
+        if last_det_scores is not None:
+            last_det_scores = last_det_scores.scores
+        if last_det_scores is None:
+            # Fall back to using detection scores for both sides
+            last_det_scores = detection.scores
 
-        # Count valid and matching keypoints
-        n_points = len(det_points)
-        n_valid = 0
-        n_matching = 0
+        match_num = np.count_nonzero(
+            (distances < keypoint_distance_threshold)
+            * (detection.scores > detection_threshold)
+            * (last_det_scores > detection_threshold)
+        )
+        return 1 / (1 + match_num)
 
-        for i in range(n_points):
-            # Check if this keypoint is valid (score > threshold)
-            if det_scores is not None and det_scores[i] <= detection_threshold:
-                continue
-
-            n_valid += 1
-
-            # Compute distance between detection and estimate
-            dist = np.linalg.norm(det_points[i] - obj_estimate[i])
-            if dist <= keypoint_distance_threshold:
-                n_matching += 1
-
-        if n_valid == 0:
-            return 1.0  # No valid keypoints, maximum distance
-
-        return 1.0 - (n_matching / n_valid)
-
-    return voting_distance
+    return keypoints_voting_distance
 
 
 def create_normalized_mean_euclidean_distance(
@@ -179,35 +171,32 @@ def create_normalized_mean_euclidean_distance(
     width: int,
 ) -> Callable[[Detection, TrackedObject], float]:
     """
-    Create a normalized mean euclidean distance function.
+    Construct a normalized mean euclidean distance function.
 
-    This distance function computes the mean euclidean distance between
-    detection points and tracked object estimate, normalized by the frame
-    dimensions (diagonal length).
+    The result distance is bound to [0, 1] where 1 indicates opposite corners.
 
     Args:
-        height: Frame height in pixels.
-        width: Frame width in pixels.
+        height: Height of the image.
+        width: Width of the image.
 
     Returns:
         A distance function that takes (detection, tracked_object) and returns
-        a float distance value normalized to approximately [0, 1].
+        a float distance value.
     """
-    diagonal = np.sqrt(height**2 + width**2)
 
-    def normalized_distance(detection: Detection, tracked_object: TrackedObject) -> float:
-        det_points = detection.points
-        obj_estimate = tracked_object.estimate
+    def normalized_mean_euclidean_distance(
+        detection: Detection, tracked_object: TrackedObject
+    ) -> float:
+        """Normalized mean euclidean distance"""
+        # calculate distances and normalize by width and height
+        difference = (detection.points - tracked_object.estimate).astype(float)
+        difference[:, 0] /= width
+        difference[:, 1] /= height
 
-        # Compute mean euclidean distance
-        diff = det_points - obj_estimate
-        distances = np.linalg.norm(diff, axis=1)
-        mean_dist = np.mean(distances)
+        # calculate euclidean distance and average
+        return np.linalg.norm(difference, axis=1).mean()
 
-        # Normalize by diagonal
-        return mean_dist / diagonal
-
-    return normalized_distance
+    return normalized_mean_euclidean_distance
 
 
 __all__ = [

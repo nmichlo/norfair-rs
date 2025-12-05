@@ -21,7 +21,7 @@
 - **Detector-agnostic design:** Works with any object detector (YOLO, Faster R-CNN, custom models)
 - **Rust-native performance:** Zero-cost abstractions, no GC, maximum speed
 - **Type-safe API:** Compile-time validation of tracking configurations
-- **Comprehensive Tests:** 278 tests ensuring correctness and equivalence with the original norfair library
+- **Comprehensive Tests:** 289+ Rust tests + 98 Python tests ensuring correctness and equivalence with the original norfair library
 - **Drop-In-Replacement**: Python bindings with `uv add norfair_rs` and `import norfair_rs as norfair`
 
 ### Related Projects
@@ -33,9 +33,9 @@
 
 - **Flexible Distance Functions:** IoU, Euclidean, Manhattan, Frobenius, Keypoint Voting, and more
 - **Multiple Filtering Options:** Optimized Kalman filter, full filterpy-equivalent Kalman, or no filtering
-- **Camera Motion Compensation:** Support for translation transformations (homography with opencv feature)
-- **Re-identification:** Optional feature embedding for robust identity matching
+- **Re-identification (ReID):** Full support for object re-identification with `reid_hit_counter` lifecycle
 - **Thread-safe:** Concurrent-safe ID generation and tracking
+- **Python Callable Support:** Use custom Python distance functions directly with the Tracker
 
 ### Benchmarks
 
@@ -88,17 +88,28 @@ from norfair_rs import Detection, Tracker
 Most of your existing norfair code should work unchanged. See the [benchmark results](#benchmarks) for performance comparisons.
 
 <details>
-<summary><b>Python Limitations (Not Yet Supported)</b></summary>
+<summary><b>Python API Compatibility</b></summary>
 
-The following norfair features are not yet available in norfair-rs Python bindings:
+**Compatible with norfair:**
+- ✅ `Detection`, `TrackedObject`, `Tracker` - Same API
+- ✅ Custom Python callable distance functions
+- ✅ Custom Python callable `reid_distance_function`
+- ✅ `create_keypoints_voting_distance()`, `create_normalized_mean_euclidean_distance()`
+- ✅ All built-in distance functions via `get_distance_by_name()`
+- ✅ Full ReID support with `reid_hit_counter` lifecycle
+- ✅ Filter factories: `OptimizedKalmanFilterFactory`, `FilterPyKalmanFilterFactory`, `NoFilterFactory`
+- ✅ `TranslationTransformation` for camera motion
 
-- **Custom Python callable distance functions** - Use built-in distance functions (`"iou"`, `"euclidean"`, `"frobenius"`, etc.) instead
-- **Custom Python callable reid_distance_function** - Re-identification with custom distance functions
-- **`create_keypoints_voting_distance()`** - Use `"keypoints_voting"` string or built-in implementation
-- **`create_normalized_mean_euclidean_distance()`** - Use `"mean_euclidean"` or implement normalization separately
-- **scipy distance functions** - Use the equivalent built-in functions via `get_distance_by_name()`
+**Not yet implemented:**
+The following features from Python norfair are **not available** in norfair-rs:
 
-All core tracking functionality works identically to the original norfair.
+- **Video I/O** - `Video` class (requires OpenCV)
+- **Drawing** - `draw_boxes()`, `draw_points()`, `draw_tracked_objects()`, `Drawer`, `Paths` (requires OpenCV)
+- **Homography** - `HomographyTransformation`, `MotionEstimator` (requires OpenCV)
+- **Utilities** - `FixedCamera`, `get_cutout()`, `print_objects_as_table()`
+- **Scipy** - Scipy vectorised distance functions and some other features.
+
+Most of these features require OpenCV bindings which are not yet implemented. Core tracking works fully.
 
 </details>
 

@@ -6,28 +6,34 @@
 # - Changed imports from norfair.distances to norfair_rs
 # - Overrode mock_det/mock_obj fixtures to create real norfair_rs objects
 #   (norfair_rs distance functions require typed objects, not duck-typed)
-# - Skipped tests for unavailable features:
-#   - create_keypoints_voting_distance (not available)
-#   - create_normalized_mean_euclidean_distance (not available)
-#   - ScipyDistance (not available - use get_distance_by_name instead)
-#   - Python callable ScalarDistance/VectorizedDistance (not yet supported)
+#
+# AVAILABLE FEATURES (fully working):
+#   - create_keypoints_voting_distance (Python implementation in __init__.py)
+#   - create_normalized_mean_euclidean_distance (Python implementation in __init__.py)
+#   - Python callable distance functions (works via PyCallableDistance)
+#
+# SKIPPED (not applicable to norfair_rs):
+#   - ScipyDistance class (norfair_rs uses get_distance_by_name instead)
+#   - ScalarDistance/VectorizedDistance with custom Python callables (norfair_rs
+#     handles callables differently - pass directly to Tracker instead)
 # =============================================================================
 
 import numpy as np
 import pytest
 from norfair_rs import (
     Detection,
+    NoFilterFactory,
     ScalarDistance,
     Tracker,
     VectorizedDistance,
+    create_keypoints_voting_distance,
+    create_normalized_mean_euclidean_distance,
     frobenius,
     get_distance_by_name,
 )
 
-# NOTE: These are not available in norfair_rs:
-# - ScipyDistance (use get_distance_by_name("euclidean") etc instead)
-# - create_keypoints_voting_distance
-# - create_normalized_mean_euclidean_distance
+# NOTE: ScipyDistance is not available in norfair_rs
+# Use get_distance_by_name("euclidean") etc instead
 
 
 # =============================================================================
@@ -56,6 +62,10 @@ def mock_obj():
 
     Since TrackedObject can only be created by Tracker, we run a detection
     through a tracker with initialization_delay=0.
+
+    We use NoFilterFactory to ensure the estimate matches the input points
+    exactly (no Kalman filtering), which is needed for tests that compare
+    distances against exact point values.
     """
 
     def _make_obj(points, scores=None, label=None):
@@ -72,6 +82,7 @@ def mock_obj():
             distance_threshold=1000,
             initialization_delay=0,
             hit_counter_max=2,
+            filter_factory=NoFilterFactory(),  # Use NoFilter to preserve exact points
         )
         tracked = tracker.update([det])
         assert len(tracked) == 1
@@ -253,8 +264,6 @@ def test_iou():
         iou.distance_function(det, obj)
 
 
-# SKIP: create_keypoints_voting_distance not available in norfair_rs
-@pytest.mark.skip(reason="create_keypoints_voting_distance not available in norfair_rs")
 def test_keypoint_vote(mock_obj, mock_det):
     vote_d = create_keypoints_voting_distance(
         keypoint_distance_threshold=np.sqrt(8), detection_threshold=0.5
@@ -296,8 +305,6 @@ def test_keypoint_vote(mock_obj, mock_det):
     np.testing.assert_almost_equal(vote_d(det, obj), 1)  # 0 matches
 
 
-# SKIP: create_normalized_mean_euclidean_distance not available in norfair_rs
-@pytest.mark.skip(reason="create_normalized_mean_euclidean_distance not available in norfair_rs")
 def test_normalized_euclidean(mock_obj, mock_det):
     norm_e = create_normalized_mean_euclidean_distance(10, 10)
 
@@ -347,8 +354,9 @@ def test_normalized_euclidean(mock_obj, mock_det):
     np.testing.assert_almost_equal(norm_e(det, obj), 0)
 
 
-# SKIP: Python callable distance functions not yet supported in norfair_rs
-@pytest.mark.skip(reason="Python callable distance functions not yet supported in norfair_rs")
+# SKIP: ScalarDistance wrapper for Python callables is a different API in norfair_rs
+# In norfair_rs, pass Python callables directly to Tracker(distance_function=...) instead
+@pytest.mark.skip(reason="ScalarDistance wrapper API differs - pass callables directly to Tracker")
 def test_scalar_distance(mock_obj, mock_det):
     fro = ScalarDistance(frobenius)
 
@@ -362,8 +370,11 @@ def test_scalar_distance(mock_obj, mock_det):
     assert dist_matrix[0, 0] == 0
 
 
-# SKIP: Python callable distance functions not yet supported in norfair_rs
-@pytest.mark.skip(reason="Python callable distance functions not yet supported in norfair_rs")
+# SKIP: VectorizedDistance wrapper for Python callables is a different API in norfair_rs
+# In norfair_rs, pass Python callables directly to Tracker(distance_function=...) instead
+@pytest.mark.skip(
+    reason="VectorizedDistance wrapper API differs - pass callables directly to Tracker"
+)
 def test_vectorized_distance(mock_obj, mock_det):
     def distance_function(cands, objs):
         distance_matrix = np.full(
@@ -388,10 +399,9 @@ def test_vectorized_distance(mock_obj, mock_det):
     assert dist_matrix[0, 0] == 0
 
 
-# SKIP: ScipyDistance not available in norfair_rs (use get_distance_by_name instead)
-@pytest.mark.skip(
-    reason="ScipyDistance not available in norfair_rs - use get_distance_by_name instead"
-)
+# SKIP: ScipyDistance class doesn't exist in norfair_rs
+# Use get_distance_by_name("euclidean") etc. instead for the same functionality
+@pytest.mark.skip(reason="ScipyDistance class N/A - use get_distance_by_name() instead")
 def test_scipy_distance(mock_obj, mock_det):
     euc = ScipyDistance("euclidean")
 

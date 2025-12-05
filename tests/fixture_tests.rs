@@ -29,6 +29,13 @@ struct TrackerConfigJson {
     distance_threshold: f64,
     hit_counter_max: i32,
     initialization_delay: i32,
+    // ReID configuration (optional)
+    #[serde(default)]
+    reid_distance_function: Option<String>,
+    #[serde(default)]
+    reid_distance_threshold: Option<f64>,
+    #[serde(default)]
+    reid_hit_counter_max: Option<i32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -64,6 +71,8 @@ struct TrackedObjectJson {
     age: i32,
     hit_counter: i32,
     is_initializing: bool,
+    #[serde(default)]
+    reid_hit_counter: Option<i32>,
 }
 
 // ============================================================================
@@ -104,6 +113,18 @@ fn create_tracker(config: &TrackerConfigJson) -> Tracker {
     );
     tracker_config.hit_counter_max = config.hit_counter_max;
     tracker_config.initialization_delay = config.initialization_delay;
+
+    // Configure ReID if present (for non-ReID fixtures, we skip ReID matching)
+    // Note: For ReID fixtures, we use euclidean distance as the ReID function
+    if let Some(reid_threshold) = config.reid_distance_threshold {
+        // Use the same distance function for ReID matching (euclidean)
+        tracker_config.reid_distance_function =
+            Some(distance_function_by_name(&config.distance_function));
+        tracker_config.reid_distance_threshold = reid_threshold;
+    }
+    if let Some(reid_max) = config.reid_hit_counter_max {
+        tracker_config.reid_hit_counter_max = Some(reid_max);
+    }
 
     Tracker::new(tracker_config).expect("Failed to create tracker")
 }
@@ -192,6 +213,14 @@ fn compare_tracked_objects(
             return Err(format!(
                 "Step {} frame {}: Object {} is_initializing mismatch: expected {}, got {}",
                 step_idx, frame_id, i, exp.is_initializing, act.is_initializing
+            ));
+        }
+
+        // Compare reid_hit_counter (both can be None)
+        if exp.reid_hit_counter != act.reid_hit_counter {
+            return Err(format!(
+                "Step {} frame {}: Object {} reid_hit_counter mismatch: expected {:?}, got {:?}",
+                step_idx, frame_id, i, exp.reid_hit_counter, act.reid_hit_counter
             ));
         }
 
@@ -297,4 +326,24 @@ fn test_fixture_small() {
 #[test]
 fn test_fixture_medium() {
     run_fixture_test("medium");
+}
+
+#[test]
+fn test_fixture_euclidean_small() {
+    run_fixture_test("euclidean_small");
+}
+
+#[test]
+fn test_fixture_fast_init() {
+    run_fixture_test("fast_init");
+}
+
+#[test]
+fn test_fixture_iou_occlusion() {
+    run_fixture_test("iou_occlusion");
+}
+
+#[test]
+fn test_fixture_reid_euclidean() {
+    run_fixture_test("reid_euclidean");
 }

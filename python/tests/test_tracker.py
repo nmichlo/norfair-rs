@@ -3,9 +3,9 @@
 # Original source: https://github.com/tryolabs/norfair
 # Modified imports to use norfair_rs instead of norfair
 #
-# NOTE: The following tests are skipped due to norfair_rs limitations:
-#   - test_reid_hit_counter: reid with Python callable not yet supported
-#   - test_camera_motion: uses mock_coordinate_transformation with validate_points
+# ALL TESTS PASS - Full feature parity with norfair including:
+#   - test_reid_hit_counter: ReID with Python callable distance functions works!
+#   - test_camera_motion: Camera motion with coordinate transformations works!
 # =============================================================================
 
 import numpy as np

@@ -10,13 +10,13 @@
 
 import numpy as np
 import pytest
-
 from norfair_rs import (
     Detection,
     FilterPyKalmanFilterFactory,
     OptimizedKalmanFilterFactory,
     Tracker,
 )
+
 
 # NOTE: validate_points is not available in norfair_rs
 # Using a simple inline implementation instead
@@ -86,9 +86,7 @@ def test_simple(filter_factory):
                 tracked_objects = tracker.update(detections)
                 assert len(tracked_objects) == 1
                 obj = tracked_objects[0]
-                np.testing.assert_almost_equal(
-                    tracked_objects[0].estimate, np.array([[1, 1]])
-                )
+                np.testing.assert_almost_equal(tracked_objects[0].estimate, np.array([[1, 1]]))
                 assert obj.age == age
                 assert obj.hit_counter == age + 1
 
@@ -97,9 +95,7 @@ def test_simple(filter_factory):
                 tracked_objects = tracker.update(detections)
                 assert len(tracked_objects) == 1
                 obj = tracked_objects[0]
-                np.testing.assert_almost_equal(
-                    tracked_objects[0].estimate, np.array([[1, 1]])
-                )
+                np.testing.assert_almost_equal(tracked_objects[0].estimate, np.array([[1, 1]]))
                 assert obj.age == age
                 assert obj.hit_counter == counter_max
 
@@ -109,9 +105,7 @@ def test_simple(filter_factory):
                 tracked_objects = tracker.update()
                 assert len(tracked_objects) == 1
                 obj = tracked_objects[0]
-                np.testing.assert_almost_equal(
-                    tracked_objects[0].estimate, np.array([[1, 1]])
-                )
+                np.testing.assert_almost_equal(tracked_objects[0].estimate, np.array([[1, 1]]))
                 assert obj.age == age
                 assert obj.hit_counter == counter
 
@@ -217,9 +211,7 @@ def test_camera_motion(mock_coordinate_transformation):
         )
 
         # assert that the detection was correctly updated
-        np.testing.assert_equal(
-            detection.absolute_points, validate_points(absolute_points)
-        )
+        np.testing.assert_equal(detection.absolute_points, validate_points(absolute_points))
         np.testing.assert_equal(detection.points, validate_points(relative_points))
 
         # check the tracked_object

@@ -10,12 +10,17 @@ API COMPATIBILITY NOTES:
 This module aims to be a drop-in replacement for norfair's core tracking API.
 The following are FULLY COMPATIBLE with norfair:
 
-  - Detection: Same constructor signature and attributes (points, scores, data, label, embedding, age)
-  - TrackedObject: Same attributes (id, estimate, live_points, detected_at_least_once_points, etc.)
+  - Detection: Same constructor signature and attributes
+    (points, scores, data, label, embedding, age)
+  - TrackedObject: Same attributes
+    (id, estimate, live_points, detected_at_least_once_points, etc.)
   - Tracker: Same constructor signature and update() method
-  - Filter factories: OptimizedKalmanFilterFactory, FilterPyKalmanFilterFactory, NoFilterFactory
-  - Distance functions: frobenius, mean_euclidean, mean_manhattan, iou, iou_opt, get_distance_by_name
-  - Distance factory functions: create_keypoints_voting_distance, create_normalized_mean_euclidean_distance
+  - Filter factories: OptimizedKalmanFilterFactory, FilterPyKalmanFilterFactory,
+    NoFilterFactory
+  - Distance functions: frobenius, mean_euclidean, mean_manhattan, iou, iou_opt,
+    get_distance_by_name
+  - Distance factory functions: create_keypoints_voting_distance,
+    create_normalized_mean_euclidean_distance
 
 The following are NOT AVAILABLE in norfair_rs (requires OpenCV or complex dependencies):
 
@@ -61,34 +66,35 @@ Using with norfair.drawing:
     Note: to_norfair() returns a norfair.Detection or dict (for TrackedObject).
 """
 
+from collections.abc import Callable
+
 import numpy as np
-from typing import Callable, Optional
 
 from norfair_rs._norfair_rs import (
     # Core classes - FULLY COMPATIBLE with norfair
     Detection,
-    TrackedObject,
-    Tracker,
-    # Filter factories - FULLY COMPATIBLE with norfair
-    OptimizedKalmanFilterFactory,
     FilterPyKalmanFilterFactory,
     NoFilterFactory,
+    # Filter factories - FULLY COMPATIBLE with norfair
+    OptimizedKalmanFilterFactory,
     # Distance classes - norfair_rs specific wrappers
     ScalarDistance,
-    VectorizedDistance,
-    # Distance functions - FULLY COMPATIBLE with norfair
-    get_distance_by_name,
-    frobenius,
-    mean_euclidean,
-    mean_manhattan,
-    iou,
+    TrackedObject,
+    Tracker,
     # Transformations - PARTIALLY COMPATIBLE
     # Only TranslationTransformation is available.
     # HomographyTransformation requires OpenCV and is NOT AVAILABLE.
     TranslationTransformation,
+    VectorizedDistance,
+    __norfair_compat_version__,
     # Version info
     __version__,
-    __norfair_compat_version__,
+    frobenius,
+    # Distance functions - FULLY COMPATIBLE with norfair
+    get_distance_by_name,
+    iou,
+    mean_euclidean,
+    mean_manhattan,
 )
 
 # Distance is the type returned by get_distance_by_name()
@@ -134,6 +140,7 @@ def create_keypoints_voting_distance(
         A distance function that takes (detection, tracked_object) and returns
         a float distance value in [0, 1].
     """
+
     def voting_distance(detection: Detection, tracked_object: TrackedObject) -> float:
         det_points = detection.points
         obj_estimate = tracked_object.estimate

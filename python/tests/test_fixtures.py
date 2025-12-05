@@ -8,10 +8,9 @@
 # =============================================================================
 
 import json
-import numpy as np
-import pytest
 from pathlib import Path
 
+import numpy as np
 from norfair_rs import Detection, Tracker
 
 
@@ -35,7 +34,7 @@ def load_fixture(scenario: str) -> dict:
     testdata_dir = find_testdata_dir()
     path = testdata_dir / f"fixture_{scenario}.json"
 
-    with open(path, "r") as f:
+    with open(path) as f:
         return json.load(f)
 
 
@@ -168,7 +167,9 @@ def run_fixture_test(scenario: str):
         # Sort by initializing_id to ensure consistent ordering
         all_objects = sorted(
             tracker.tracked_objects,
-            key=lambda obj: obj.initializing_id if obj.initializing_id is not None else float('inf')
+            key=lambda obj: obj.initializing_id
+            if obj.initializing_id is not None
+            else float("inf"),
         )
         compare_tracked_objects(
             step_idx,
@@ -185,6 +186,7 @@ def run_fixture_test(scenario: str):
 # ============================================================================
 # Test Cases
 # ============================================================================
+
 
 def test_fixture_small():
     """Test with small fixture (100 frames)."""

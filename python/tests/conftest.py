@@ -7,6 +7,7 @@
 import numpy as np
 import pytest
 
+
 # NOTE: validate_points is not available in norfair_rs
 # Using a simple inline implementation instead
 def validate_points(points):
@@ -52,7 +53,6 @@ def mock_obj(mock_det):
 
 @pytest.fixture
 def mock_coordinate_transformation():
-
     # simple mock to return abs or relative positions
     class TransformMock:
         def __init__(self, relative_points, absolute_points) -> None:

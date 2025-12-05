@@ -7,7 +7,9 @@ norfair_rs Python bindings.
 Compatible with norfair v2.3.0 API.
 """
 
-from typing import Any, Callable, Hashable, List, Optional, Sequence, Union
+from collections.abc import Callable
+from typing import Any
+
 import numpy as np
 import numpy.typing as npt
 
@@ -38,18 +40,18 @@ class Detection:
     """
 
     points: NDArrayFloat
-    scores: Optional[NDArrayFloat]
-    label: Optional[str]
-    embedding: Optional[NDArrayFloat]
+    scores: NDArrayFloat | None
+    label: str | None
+    embedding: NDArrayFloat | None
     absolute_points: NDArrayFloat
 
     def __init__(
         self,
         points: NDArrayFloat,
-        scores: Optional[NDArrayFloat] = None,
+        scores: NDArrayFloat | None = None,
         data: Any = None,
-        label: Optional[str] = None,
-        embedding: Optional[NDArrayFloat] = None,
+        label: str | None = None,
+        embedding: NDArrayFloat | None = None,
     ) -> None:
         """
         Create a new Detection.
@@ -85,7 +87,6 @@ class Detection:
         """
         ...
 
-
 class TrackedObject:
     """
     A tracked object maintained by the tracker.
@@ -113,20 +114,20 @@ class TrackedObject:
         point_hit_counter: Per-point hit counters.
     """
 
-    id: Optional[int]
+    id: int | None
     global_id: int
-    initializing_id: Optional[int]
+    initializing_id: int | None
     age: int
     hit_counter: int
     estimate: NDArrayFloat
     estimate_velocity: NDArrayFloat
-    last_detection: Optional[Detection]
-    last_distance: Optional[float]
+    last_detection: Detection | None
+    last_distance: float | None
     live_points: NDArrayBool
     is_initializing: bool
-    label: Optional[str]
-    reid_hit_counter: Optional[int]
-    past_detections: List[Detection]
+    label: str | None
+    reid_hit_counter: int | None
+    past_detections: list[Detection]
     point_hit_counter: NDArrayInt
     hit_counter_is_positive: bool
     reid_hit_counter_is_positive: bool
@@ -152,7 +153,6 @@ class TrackedObject:
         """
         ...
 
-
 class Tracker:
     """
     Object tracker.
@@ -175,29 +175,21 @@ class Tracker:
 
     current_object_count: int
     total_object_count: int
-    tracked_objects: List[TrackedObject]
+    tracked_objects: list[TrackedObject]
 
     def __init__(
         self,
-        distance_function: Union[str, Callable[[Detection, TrackedObject], float]],
+        distance_function: str | Callable[[Detection, TrackedObject], float],
         distance_threshold: float,
         hit_counter_max: int = 15,
-        initialization_delay: Optional[int] = None,
+        initialization_delay: int | None = None,
         pointwise_hit_counter_max: int = 4,
         detection_threshold: float = 0.0,
-        filter_factory: Optional[
-            Union[
-                "OptimizedKalmanFilterFactory",
-                "FilterPyKalmanFilterFactory",
-                "NoFilterFactory",
-            ]
-        ] = None,
+        filter_factory: OptimizedKalmanFilterFactory | FilterPyKalmanFilterFactory | NoFilterFactory | None = None,
         past_detections_length: int = 4,
-        reid_distance_function: Optional[
-            Callable[["TrackedObject", "TrackedObject"], float]
-        ] = None,
+        reid_distance_function: Callable[[TrackedObject, TrackedObject], float] | None = None,
         reid_distance_threshold: float = 0.0,
-        reid_hit_counter_max: Optional[int] = None,
+        reid_hit_counter_max: int | None = None,
     ) -> None:
         """
         Create a new Tracker.
@@ -221,10 +213,10 @@ class Tracker:
 
     def update(
         self,
-        detections: Optional[List[Detection]] = None,
+        detections: list[Detection] | None = None,
         period: int = 1,
-        coord_transformations: Optional["TranslationTransformation"] = None,
-    ) -> List[TrackedObject]:
+        coord_transformations: TranslationTransformation | None = None,
+    ) -> list[TrackedObject]:
         """
         Update the tracker with new detections.
 
@@ -238,7 +230,7 @@ class Tracker:
         """
         ...
 
-    def get_active_objects(self) -> List[TrackedObject]:
+    def get_active_objects(self) -> list[TrackedObject]:
         """
         Get all currently active (non-initializing) objects.
 
@@ -246,7 +238,6 @@ class Tracker:
             List of TrackedObject instances that have been initialized.
         """
         ...
-
 
 # Filter Factories
 
@@ -277,7 +268,6 @@ class OptimizedKalmanFilterFactory:
         """
         ...
 
-
 class FilterPyKalmanFilterFactory:
     """
     FilterPy-compatible Kalman filter factory.
@@ -301,7 +291,6 @@ class FilterPyKalmanFilterFactory:
         """
         ...
 
-
 class NoFilterFactory:
     """
     No-filter factory (baseline without prediction).
@@ -310,7 +299,6 @@ class NoFilterFactory:
     def __init__(self) -> None:
         """Create a new NoFilterFactory."""
         ...
-
 
 # Distance Classes
 
@@ -322,7 +310,6 @@ class Distance:
     """
 
     ...
-
 
 class ScalarDistance:
     """
@@ -345,7 +332,6 @@ class ScalarDistance:
         """
         ...
 
-
 class VectorizedDistance:
     """
     Wrapper for vectorized distance functions.
@@ -366,7 +352,6 @@ class VectorizedDistance:
                                and returns a distance matrix.
         """
         ...
-
 
 # Distance Functions
 
@@ -392,7 +377,6 @@ def get_distance_by_name(name: str) -> Distance:
     """
     ...
 
-
 def frobenius(detection: Detection, tracked_object: TrackedObject) -> float:
     """
     Frobenius norm distance between detection and tracked object.
@@ -405,7 +389,6 @@ def frobenius(detection: Detection, tracked_object: TrackedObject) -> float:
         Frobenius norm of the difference.
     """
     ...
-
 
 def mean_euclidean(detection: Detection, tracked_object: TrackedObject) -> float:
     """
@@ -420,7 +403,6 @@ def mean_euclidean(detection: Detection, tracked_object: TrackedObject) -> float
     """
     ...
 
-
 def mean_manhattan(detection: Detection, tracked_object: TrackedObject) -> float:
     """
     Mean Manhattan distance between detection and tracked object.
@@ -433,7 +415,6 @@ def mean_manhattan(detection: Detection, tracked_object: TrackedObject) -> float
         Mean L1 distance across all corresponding points.
     """
     ...
-
 
 def iou(candidates: NDArrayFloat, objects: NDArrayFloat) -> NDArrayFloat:
     """
@@ -449,7 +430,6 @@ def iou(candidates: NDArrayFloat, objects: NDArrayFloat) -> NDArrayFloat:
         Distance is 1 - IoU, so 0 means perfect overlap.
     """
     ...
-
 
 # Transformations
 

@@ -15,11 +15,10 @@
 
 import numpy as np
 import pytest
-
 from norfair_rs import (
     Detection,
-    Tracker,
     ScalarDistance,
+    Tracker,
     VectorizedDistance,
     frobenius,
     get_distance_by_name,
@@ -35,9 +34,11 @@ from norfair_rs import (
 # OVERRIDE FIXTURES: norfair_rs requires real Detection/TrackedObject objects
 # =============================================================================
 
+
 @pytest.fixture
 def mock_det():
     """Override conftest mock_det to create real norfair_rs Detection objects."""
+
     def _make_det(points, scores=None, label=None):
         pts = np.array(points, dtype=np.float64)
         if scores is not None:
@@ -45,6 +46,7 @@ def mock_det():
             if scores.ndim == 0:
                 scores = np.full(pts.shape[0], float(scores))
         return Detection(pts, scores=scores, label=label)
+
     return _make_det
 
 
@@ -55,6 +57,7 @@ def mock_obj():
     Since TrackedObject can only be created by Tracker, we run a detection
     through a tracker with initialization_delay=0.
     """
+
     def _make_obj(points, scores=None, label=None):
         pts = np.array(points, dtype=np.float64)
         if scores is not None:
@@ -73,6 +76,7 @@ def mock_obj():
         tracked = tracker.update([det])
         assert len(tracked) == 1
         return tracked[0]
+
     return _make_obj
 
 
@@ -385,7 +389,9 @@ def test_vectorized_distance(mock_obj, mock_det):
 
 
 # SKIP: ScipyDistance not available in norfair_rs (use get_distance_by_name instead)
-@pytest.mark.skip(reason="ScipyDistance not available in norfair_rs - use get_distance_by_name instead")
+@pytest.mark.skip(
+    reason="ScipyDistance not available in norfair_rs - use get_distance_by_name instead"
+)
 def test_scipy_distance(mock_obj, mock_det):
     euc = ScipyDistance("euclidean")
 

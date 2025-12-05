@@ -15,11 +15,13 @@ def nf(request):
     if request.param == "norfair":
         try:
             import norfair
+
             return norfair
         except ImportError:
             pytest.skip("norfair not installed")
     else:
         import norfair_rs
+
         return norfair_rs
 
 
@@ -137,27 +139,27 @@ class TestDistanceFunctions:
 
     def test_iou_available(self, nf):
         """Test that iou is available."""
-        assert hasattr(nf, 'iou')
+        assert hasattr(nf, "iou")
 
     def test_iou_opt_available(self, nf):
         """Test that iou_opt is available."""
-        assert hasattr(nf, 'iou_opt')
+        assert hasattr(nf, "iou_opt")
 
     def test_frobenius_available(self, nf):
         """Test that frobenius is available."""
-        assert hasattr(nf, 'frobenius')
+        assert hasattr(nf, "frobenius")
 
     def test_mean_euclidean_available(self, nf):
         """Test that mean_euclidean is available."""
-        assert hasattr(nf, 'mean_euclidean')
+        assert hasattr(nf, "mean_euclidean")
 
     def test_mean_manhattan_available(self, nf):
         """Test that mean_manhattan is available."""
-        assert hasattr(nf, 'mean_manhattan')
+        assert hasattr(nf, "mean_manhattan")
 
     def test_get_distance_by_name(self, nf):
         """Test get_distance_by_name function."""
-        assert hasattr(nf, 'get_distance_by_name')
+        assert hasattr(nf, "get_distance_by_name")
         dist = nf.get_distance_by_name("euclidean")
         assert dist is not None
 
@@ -166,9 +168,9 @@ class TestDistanceFunctions:
         # Note: norfair doesn't export this constant, it's a norfair_rs extension
         if nf.__name__ == "norfair":
             pytest.skip("AVAILABLE_VECTORIZED_DISTANCES is a norfair_rs extension")
-        assert hasattr(nf, 'AVAILABLE_VECTORIZED_DISTANCES')
-        assert 'iou' in nf.AVAILABLE_VECTORIZED_DISTANCES
-        assert 'euclidean' in nf.AVAILABLE_VECTORIZED_DISTANCES
+        assert hasattr(nf, "AVAILABLE_VECTORIZED_DISTANCES")
+        assert "iou" in nf.AVAILABLE_VECTORIZED_DISTANCES
+        assert "euclidean" in nf.AVAILABLE_VECTORIZED_DISTANCES
 
 
 class TestDistanceFactoryFunctions:
@@ -176,16 +178,15 @@ class TestDistanceFactoryFunctions:
 
     def test_create_keypoints_voting_distance(self, nf):
         """Test create_keypoints_voting_distance factory function."""
-        assert hasattr(nf, 'create_keypoints_voting_distance')
+        assert hasattr(nf, "create_keypoints_voting_distance")
         dist_fn = nf.create_keypoints_voting_distance(
-            keypoint_distance_threshold=10.0,
-            detection_threshold=0.5
+            keypoint_distance_threshold=10.0, detection_threshold=0.5
         )
         assert callable(dist_fn)
 
     def test_create_normalized_mean_euclidean_distance(self, nf):
         """Test create_normalized_mean_euclidean_distance factory function."""
-        assert hasattr(nf, 'create_normalized_mean_euclidean_distance')
+        assert hasattr(nf, "create_normalized_mean_euclidean_distance")
         dist_fn = nf.create_normalized_mean_euclidean_distance(height=100, width=200)
         assert callable(dist_fn)
 
@@ -195,19 +196,19 @@ class TestFilterFactories:
 
     def test_optimized_kalman_filter_factory(self, nf):
         """Test OptimizedKalmanFilterFactory."""
-        assert hasattr(nf, 'OptimizedKalmanFilterFactory')
+        assert hasattr(nf, "OptimizedKalmanFilterFactory")
         factory = nf.OptimizedKalmanFilterFactory()
         assert factory is not None
 
     def test_filterpy_kalman_filter_factory(self, nf):
         """Test FilterPyKalmanFilterFactory."""
-        assert hasattr(nf, 'FilterPyKalmanFilterFactory')
+        assert hasattr(nf, "FilterPyKalmanFilterFactory")
         factory = nf.FilterPyKalmanFilterFactory()
         assert factory is not None
 
     def test_no_filter_factory(self, nf):
         """Test NoFilterFactory."""
-        assert hasattr(nf, 'NoFilterFactory')
+        assert hasattr(nf, "NoFilterFactory")
         factory = nf.NoFilterFactory()
         assert factory is not None
 
@@ -266,11 +267,19 @@ class TestModuleExports:
         """Test that core items are exported."""
         # These are exported by both norfair and norfair_rs
         expected = [
-            'Detection', 'Tracker',
-            'OptimizedKalmanFilterFactory', 'FilterPyKalmanFilterFactory', 'NoFilterFactory',
-            'frobenius', 'mean_euclidean', 'mean_manhattan', 'iou', 'iou_opt',
-            'get_distance_by_name',
-            'create_keypoints_voting_distance', 'create_normalized_mean_euclidean_distance',
+            "Detection",
+            "Tracker",
+            "OptimizedKalmanFilterFactory",
+            "FilterPyKalmanFilterFactory",
+            "NoFilterFactory",
+            "frobenius",
+            "mean_euclidean",
+            "mean_manhattan",
+            "iou",
+            "iou_opt",
+            "get_distance_by_name",
+            "create_keypoints_voting_distance",
+            "create_normalized_mean_euclidean_distance",
         ]
         for name in expected:
             assert hasattr(nf, name), f"Missing export: {name}"
@@ -280,18 +289,21 @@ class TestModuleExports:
         if nf.__name__ == "norfair":
             pytest.skip("Testing norfair_rs extensions")
         # norfair_rs exports TrackedObject directly (norfair doesn't)
-        assert hasattr(nf, 'TrackedObject')
-        assert hasattr(nf, 'AVAILABLE_VECTORIZED_DISTANCES')
+        assert hasattr(nf, "TrackedObject")
+        assert hasattr(nf, "AVAILABLE_VECTORIZED_DISTANCES")
 
 
 class TestTrackerWithFilters:
     """Test Tracker with different filter types."""
 
-    @pytest.mark.parametrize("filter_factory_name", [
-        "OptimizedKalmanFilterFactory",
-        "FilterPyKalmanFilterFactory",
-        "NoFilterFactory",
-    ])
+    @pytest.mark.parametrize(
+        "filter_factory_name",
+        [
+            "OptimizedKalmanFilterFactory",
+            "FilterPyKalmanFilterFactory",
+            "NoFilterFactory",
+        ],
+    )
     def test_tracker_with_filter(self, nf, filter_factory_name):
         """Test tracker with different filter factories."""
         factory_cls = getattr(nf, filter_factory_name)

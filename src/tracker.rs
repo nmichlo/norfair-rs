@@ -305,11 +305,15 @@ impl Tracker {
             }
         }
 
-        // Update point hit counters
+        // Update point hit counters and detected_at_least_once_points
         for (i, counter) in obj.point_hit_counter.iter_mut().enumerate() {
             let score = detection.scores.as_ref().map(|s| s[i]).unwrap_or(1.0);
             if score > self.config.detection_threshold {
                 *counter = (*counter + period).min(self.config.pointwise_hit_counter_max);
+                // Mark point as detected at least once
+                if i < obj.detected_at_least_once_points.len() {
+                    obj.detected_at_least_once_points[i] = true;
+                }
             }
         }
 
@@ -354,6 +358,13 @@ impl Tracker {
         // Initialize point hit counters
         let point_hit_counter = vec![period.min(self.config.pointwise_hit_counter_max); num_points];
 
+        // Initialize detected_at_least_once_points based on detection scores
+        let detected_at_least_once_points = if let Some(ref scores) = detection.scores {
+            scores.iter().map(|&s| s > self.config.detection_threshold).collect()
+        } else {
+            vec![true; num_points]
+        };
+
         let mut obj = TrackedObject {
             id: None,
             global_id,
@@ -363,12 +374,14 @@ impl Tracker {
             point_hit_counter,
             last_detection: Some(detection.clone()),
             last_distance: None,
+            current_min_distance: None,
             past_detections: VecDeque::new(),
             label: detection.label.clone(),
             reid_hit_counter: self.config.reid_hit_counter_max,
             estimate: filter.get_state(),
             estimate_velocity: DMatrix::zeros(num_points, dim_points),
             is_initializing: true,
+            detected_at_least_once_points,
             filter,
             num_points,
             dim_points,

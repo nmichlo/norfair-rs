@@ -16,9 +16,23 @@ use crate::Detection;
 ///
 /// Compatible with norfair.drawing functions via duck-typing.
 #[pyclass(name = "Detection")]
-#[derive(Clone)]
 pub struct PyDetection {
     pub(crate) inner: Arc<RwLock<Detection>>,
+    /// Optional arbitrary user data (stored as Python object).
+    pub(crate) data: Option<PyObject>,
+}
+
+impl Clone for PyDetection {
+    fn clone(&self) -> Self {
+        // Clone without the GIL-dependent data field is safe since PyObject is reference-counted
+        // and we need to use Python::with_gil to clone properly in PyO3 0.22
+        Python::with_gil(|py| {
+            Self {
+                inner: self.inner.clone(),
+                data: self.data.as_ref().map(|obj| obj.clone_ref(py)),
+            }
+        })
+    }
 }
 
 impl PyDetection {
@@ -26,6 +40,15 @@ impl PyDetection {
     pub fn from_detection(det: Detection) -> Self {
         Self {
             inner: Arc::new(RwLock::new(det)),
+            data: None,
+        }
+    }
+
+    /// Create a new PyDetection with data.
+    pub fn from_detection_with_data(det: Detection, data: Option<PyObject>) -> Self {
+        Self {
+            inner: Arc::new(RwLock::new(det)),
+            data,
         }
     }
 
@@ -144,7 +167,7 @@ impl PyDetection {
         let det = Detection::with_config(points_matrix, scores_vec, label, embedding_vec)
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
 
-        Ok(Self::from_detection(det))
+        Ok(Self::from_detection_with_data(det, data))
     }
 
     /// The detection points as a numpy array of shape (n_points, n_dims).
@@ -176,6 +199,25 @@ impl PyDetection {
         det.embedding
             .as_ref()
             .map(|e| vec_to_numpy1(py, e))
+    }
+
+    /// Optional arbitrary user data.
+    #[getter]
+    fn data(&self, py: Python<'_>) -> Option<PyObject> {
+        self.data.as_ref().map(|obj| obj.clone_ref(py))
+    }
+
+    /// Frame age of this detection (set by tracker during update).
+    /// Returns None if the detection has not been processed by a tracker.
+    #[getter]
+    fn age(&self) -> Option<i32> {
+        self.inner.read().unwrap().age
+    }
+
+    /// Set the age of this detection (called internally by tracker).
+    #[setter]
+    fn set_age(&self, value: Option<i32>) {
+        self.inner.write().unwrap().age = value;
     }
 
     /// Points in absolute coordinates (world coordinates after camera motion compensation).

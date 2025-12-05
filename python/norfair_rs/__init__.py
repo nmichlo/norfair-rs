@@ -10,11 +10,12 @@ API COMPATIBILITY NOTES:
 This module aims to be a drop-in replacement for norfair's core tracking API.
 The following are FULLY COMPATIBLE with norfair:
 
-  - Detection: Same constructor signature and attributes
-  - TrackedObject: Same attributes (id, estimate, live_points, etc.)
+  - Detection: Same constructor signature and attributes (points, scores, data, label, embedding, age)
+  - TrackedObject: Same attributes (id, estimate, live_points, detected_at_least_once_points, etc.)
   - Tracker: Same constructor signature and update() method
   - Filter factories: OptimizedKalmanFilterFactory, FilterPyKalmanFilterFactory, NoFilterFactory
-  - Distance functions: frobenius, mean_euclidean, mean_manhattan, iou, get_distance_by_name
+  - Distance functions: frobenius, mean_euclidean, mean_manhattan, iou, iou_opt, get_distance_by_name
+  - Distance factory functions: create_keypoints_voting_distance, create_normalized_mean_euclidean_distance
 
 The following are NOT AVAILABLE in norfair_rs (requires OpenCV or complex dependencies):
 
@@ -23,18 +24,14 @@ The following are NOT AVAILABLE in norfair_rs (requires OpenCV or complex depend
     * Workaround: norfair_rs objects work with norfair.drawing via duck-typing
   - FixedCamera, camera_motion module: Motion estimation requires OpenCV
   - HomographyTransformation: Requires OpenCV
-  - iou_opt: Optimized IoU variant (use iou instead)
-  - create_keypoints_voting_distance: Custom distance factory
-  - create_normalized_mean_euclidean_distance: Custom distance factory
   - get_cutout, print_objects_as_table: Utility functions
 
 The following have MINOR DIFFERENCES:
 
   - TranslationTransformation: Available (simple 2D translation)
   - ScalarDistance, VectorizedDistance: Wrappers for custom distance functions
-    * NOTE: Python callable distance functions are NOT YET SUPPORTED.
-      Please use string names like "euclidean", "iou", etc.
   - Distance: Type alias for get_distance_by_name() return value
+  - Python callable distance functions are supported
 
 Example:
     >>> from norfair_rs import Tracker, Detection
@@ -64,6 +61,9 @@ Using with norfair.drawing:
     Note: to_norfair() returns a norfair.Detection or dict (for TrackedObject).
 """
 
+import numpy as np
+from typing import Callable, Optional
+
 from norfair_rs._norfair_rs import (
     # Core classes - FULLY COMPATIBLE with norfair
     Detection,
@@ -74,9 +74,6 @@ from norfair_rs._norfair_rs import (
     FilterPyKalmanFilterFactory,
     NoFilterFactory,
     # Distance classes - norfair_rs specific wrappers
-    # NOTE: ScalarDistance and VectorizedDistance wrap Python callables,
-    # but Python callable distances are NOT YET SUPPORTED in Tracker.
-    # Use string names like "euclidean", "iou", etc. instead.
     ScalarDistance,
     VectorizedDistance,
     # Distance functions - FULLY COMPATIBLE with norfair
@@ -98,6 +95,111 @@ from norfair_rs._norfair_rs import (
 # In norfair, this is an internal type. We expose it for type checking.
 Distance = type(get_distance_by_name("euclidean"))
 
+# iou_opt is a deprecated alias for iou (for backwards compatibility)
+iou_opt = iou
+
+# List of available vectorized distance functions
+AVAILABLE_VECTORIZED_DISTANCES = [
+    "iou",
+    "iou_opt",
+    "euclidean",
+    "cosine",
+    "cityblock",
+    "sqeuclidean",
+    "chebyshev",
+    "braycurtis",
+    "canberra",
+    "correlation",
+]
+
+
+def create_keypoints_voting_distance(
+    keypoint_distance_threshold: float,
+    detection_threshold: float = 0.0,
+) -> Callable[[Detection, TrackedObject], float]:
+    """
+    Create a keypoint voting distance function.
+
+    This distance function counts the number of keypoints that are within a
+    threshold distance from their corresponding predicted positions, and
+    returns 1 - (matched_keypoints / total_keypoints).
+
+    Args:
+        keypoint_distance_threshold: Maximum distance for a keypoint to be
+            considered a match.
+        detection_threshold: Minimum score for a keypoint to be considered
+            valid. Default is 0.0.
+
+    Returns:
+        A distance function that takes (detection, tracked_object) and returns
+        a float distance value in [0, 1].
+    """
+    def voting_distance(detection: Detection, tracked_object: TrackedObject) -> float:
+        det_points = detection.points
+        obj_estimate = tracked_object.estimate
+        det_scores = detection.scores
+
+        # Count valid and matching keypoints
+        n_points = len(det_points)
+        n_valid = 0
+        n_matching = 0
+
+        for i in range(n_points):
+            # Check if this keypoint is valid (score > threshold)
+            if det_scores is not None and det_scores[i] <= detection_threshold:
+                continue
+
+            n_valid += 1
+
+            # Compute distance between detection and estimate
+            dist = np.linalg.norm(det_points[i] - obj_estimate[i])
+            if dist <= keypoint_distance_threshold:
+                n_matching += 1
+
+        if n_valid == 0:
+            return 1.0  # No valid keypoints, maximum distance
+
+        return 1.0 - (n_matching / n_valid)
+
+    return voting_distance
+
+
+def create_normalized_mean_euclidean_distance(
+    height: int,
+    width: int,
+) -> Callable[[Detection, TrackedObject], float]:
+    """
+    Create a normalized mean euclidean distance function.
+
+    This distance function computes the mean euclidean distance between
+    detection points and tracked object estimate, normalized by the frame
+    dimensions (diagonal length).
+
+    Args:
+        height: Frame height in pixels.
+        width: Frame width in pixels.
+
+    Returns:
+        A distance function that takes (detection, tracked_object) and returns
+        a float distance value normalized to approximately [0, 1].
+    """
+    diagonal = np.sqrt(height**2 + width**2)
+
+    def normalized_distance(detection: Detection, tracked_object: TrackedObject) -> float:
+        det_points = detection.points
+        obj_estimate = tracked_object.estimate
+
+        # Compute mean euclidean distance
+        diff = det_points - obj_estimate
+        distances = np.linalg.norm(diff, axis=1)
+        mean_dist = np.mean(distances)
+
+        # Normalize by diagonal
+        return mean_dist / diagonal
+
+    return normalized_distance
+
+
 __all__ = [
     # Core classes
     "Detection",
@@ -117,6 +219,12 @@ __all__ = [
     "mean_euclidean",
     "mean_manhattan",
     "iou",
+    "iou_opt",  # Deprecated alias for iou
+    # Distance factory functions
+    "create_keypoints_voting_distance",
+    "create_normalized_mean_euclidean_distance",
+    # Constants
+    "AVAILABLE_VECTORIZED_DISTANCES",
     # Transformations
     "TranslationTransformation",
     # Version info

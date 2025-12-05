@@ -119,6 +119,10 @@ pub struct TrackedObject {
     /// Distance to most recent match.
     pub last_distance: Option<f64>,
 
+    /// Minimum distance to any detection in the current frame (for debugging).
+    /// This is set by the tracker during update regardless of whether a match occurs.
+    pub current_min_distance: Option<f64>,
+
     /// History of past detections for re-identification.
     pub past_detections: VecDeque<Detection>,
 
@@ -136,6 +140,10 @@ pub struct TrackedObject {
 
     /// Whether the object is still in initialization phase.
     pub is_initializing: bool,
+
+    /// Boolean mask indicating which points have been detected at least once.
+    /// This is used to track which points were initially detected vs inferred.
+    pub detected_at_least_once_points: Vec<bool>,
 
     /// The Kalman filter maintaining this object's state (enum-based static dispatch).
     pub(crate) filter: FilterEnum,
@@ -161,12 +169,14 @@ impl fmt::Debug for TrackedObject {
             .field("point_hit_counter", &self.point_hit_counter)
             .field("last_detection", &self.last_detection)
             .field("last_distance", &self.last_distance)
+            .field("current_min_distance", &self.current_min_distance)
             .field("past_detections", &self.past_detections)
             .field("label", &self.label)
             .field("reid_hit_counter", &self.reid_hit_counter)
             .field("estimate", &self.estimate)
             .field("estimate_velocity", &self.estimate_velocity)
             .field("is_initializing", &self.is_initializing)
+            .field("detected_at_least_once_points", &self.detected_at_least_once_points)
             .field("filter", &"<Filter>")
             .field("num_points", &self.num_points)
             .field("dim_points", &self.dim_points)
@@ -217,12 +227,14 @@ impl Default for TrackedObject {
             point_hit_counter: Vec::new(),
             last_detection: None,
             last_distance: None,
+            current_min_distance: None,
             past_detections: VecDeque::new(),
             label: None,
             reid_hit_counter: None,
             estimate: DMatrix::zeros(1, 2),
             estimate_velocity: DMatrix::zeros(1, 2),
             is_initializing: true,
+            detected_at_least_once_points: vec![true],  // Default: 1 point, detected
             filter: FilterEnum::None(crate::filter::NoFilter::new(&DMatrix::zeros(1, 2))),
             num_points: 1,
             dim_points: 2,

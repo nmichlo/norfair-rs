@@ -29,6 +29,10 @@ pub struct Detection {
 
     /// Points in absolute coordinates (set by tracker when using camera motion).
     pub(crate) absolute_points: Option<DMatrix<f64>>,
+
+    /// Frame age of this detection (set by tracker during update).
+    /// This is the age of the TrackedObject when this detection was matched to it.
+    pub age: Option<i32>,
 }
 
 impl Detection {
@@ -48,6 +52,7 @@ impl Detection {
             embedding: None,
             data: None,
             absolute_points: Some(validated),
+            age: None,
         })
     }
 
@@ -97,6 +102,7 @@ impl Detection {
             embedding,
             data: None,
             absolute_points: Some(validated),
+            age: None,
         })
     }
 
@@ -130,6 +136,7 @@ impl Clone for Detection {
             embedding: self.embedding.clone(),
             data: None, // User data is not cloned
             absolute_points: self.absolute_points.clone(),
+            age: self.age,
         }
     }
 }
@@ -143,6 +150,7 @@ impl Default for Detection {
             embedding: None,
             data: None,
             absolute_points: None,
+            age: None,
         }
     }
 }

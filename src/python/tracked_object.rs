@@ -26,11 +26,13 @@ pub struct PyTrackedObject {
     pub(crate) point_hit_counter: Vec<i32>,
     pub(crate) last_detection: Option<PyDetection>,
     pub(crate) last_distance: Option<f64>,
+    pub(crate) current_min_distance: Option<f64>,
     pub(crate) label: Option<String>,
     pub(crate) reid_hit_counter: Option<i32>,
     pub(crate) estimate: DMatrix<f64>,
     pub(crate) estimate_velocity: DMatrix<f64>,
     pub(crate) is_initializing: bool,
+    pub(crate) detected_at_least_once_points: Vec<bool>,
     pub(crate) past_detections: Vec<PyDetection>,
     /// Optional coordinate transformation for converting between absolute/relative
     pub(crate) coord_transform: Option<Py<PyAny>>,
@@ -63,11 +65,13 @@ impl PyTrackedObject {
             point_hit_counter: obj.point_hit_counter.clone(),
             last_detection,
             last_distance: obj.last_distance,
+            current_min_distance: obj.current_min_distance,
             label: obj.label.clone(),
             reid_hit_counter: obj.reid_hit_counter,
             estimate: obj.estimate.clone(),
             estimate_velocity: obj.estimate_velocity.clone(),
             is_initializing: obj.is_initializing,
+            detected_at_least_once_points: obj.detected_at_least_once_points.clone(),
             past_detections,
             coord_transform,
         }
@@ -166,6 +170,20 @@ impl PyTrackedObject {
     #[getter]
     fn last_distance(&self) -> Option<f64> {
         self.last_distance
+    }
+
+    /// Minimum distance to any detection in the current frame (for debugging).
+    /// This is set by the tracker during update regardless of whether a match occurs.
+    #[getter]
+    fn current_min_distance(&self) -> Option<f64> {
+        self.current_min_distance
+    }
+
+    /// Boolean mask indicating which points have been detected at least once.
+    /// Shape: (n_points,)
+    #[getter]
+    fn detected_at_least_once_points<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<bool>> {
+        Array1::from_vec(self.detected_at_least_once_points.clone()).into_pyarray_bound(py)
     }
 
     /// Boolean mask indicating which points are actively tracked.

@@ -219,6 +219,7 @@ mod tests {
             embedding: None,
             data: None,
             absolute_points: None,
+            age: None,
         }
     }
 
@@ -230,6 +231,7 @@ mod tests {
             embedding: None,
             data: None,
             absolute_points: None,
+            age: None,
         }
     }
 
@@ -253,6 +255,7 @@ mod tests {
             embedding: None,
             data: None,
             absolute_points: None,
+            age: None,
         };
         TrackedObject {
             id: None,

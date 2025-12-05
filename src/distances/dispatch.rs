@@ -138,6 +138,7 @@ mod tests {
             embedding: None,
             data: None,
             absolute_points: None,
+            age: None,
         }
     }
 
@@ -152,12 +153,14 @@ mod tests {
             point_hit_counter: vec![1; rows],
             last_detection: None,
             last_distance: None,
+            current_min_distance: None,
             past_detections: std::collections::VecDeque::new(),
             label: None,
             reid_hit_counter: None,
             estimate: estimate_matrix.clone(),
             estimate_velocity: DMatrix::zeros(rows, cols),
             is_initializing: false,
+            detected_at_least_once_points: vec![true; rows],
             filter: crate::filter::FilterEnum::None(crate::filter::NoFilter::new(&estimate_matrix)),
             num_points: rows,
             dim_points: cols,

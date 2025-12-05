@@ -17,7 +17,6 @@ import json
 import os
 import sys
 import time
-from typing import List
 
 import numpy as np
 
@@ -83,15 +82,17 @@ def run_benchmark(
 
     for frame_data in scenario["frames"]:
         # Convert detections to norfair format
-        detections: List[Detection] = []
+        detections: list[Detection] = []
         for det in frame_data["detections"]:
             bbox = det["bbox"]
             # norfair expects shape (N, 2) for N points
             # For bounding boxes, use top-left and bottom-right corners
-            points = np.array([
-                [bbox[0], bbox[1]],  # top-left
-                [bbox[2], bbox[3]],  # bottom-right
-            ])
+            points = np.array(
+                [
+                    [bbox[0], bbox[1]],  # top-left
+                    [bbox[2], bbox[3]],  # bottom-right
+                ]
+            )
             detections.append(Detection(points=points))
 
         # Update tracker
@@ -118,8 +119,12 @@ def run_benchmark(
 
 def main():
     parser = argparse.ArgumentParser(description="Benchmark norfair tracking")
-    parser.add_argument("scenario", nargs="?", default="medium", help="Scenario name (default: medium)")
-    parser.add_argument("--norfair-rs", action="store_true", help="Use norfair_rs instead of norfair")
+    parser.add_argument(
+        "scenario", nargs="?", default="medium", help="Scenario name (default: medium)"
+    )
+    parser.add_argument(
+        "--norfair-rs", action="store_true", help="Use norfair_rs instead of norfair"
+    )
     args = parser.parse_args()
 
     use_norfair_rs = args.norfair_rs

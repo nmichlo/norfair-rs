@@ -185,7 +185,10 @@ class Tracker:
         initialization_delay: int | None = None,
         pointwise_hit_counter_max: int = 4,
         detection_threshold: float = 0.0,
-        filter_factory: OptimizedKalmanFilterFactory | FilterPyKalmanFilterFactory | NoFilterFactory | None = None,
+        filter_factory: OptimizedKalmanFilterFactory
+        | FilterPyKalmanFilterFactory
+        | NoFilterFactory
+        | None = None,
         past_detections_length: int = 4,
         reid_distance_function: Callable[[TrackedObject, TrackedObject], float] | None = None,
         reid_distance_threshold: float = 0.0,

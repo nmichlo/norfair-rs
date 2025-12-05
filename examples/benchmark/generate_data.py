@@ -14,13 +14,13 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Tuple
 
 # Simple LCG PRNG (same parameters for all languages)
 # Using parameters from Numerical Recipes
 LCG_A = 1664525
 LCG_C = 1013904223
 LCG_M = 2**32
+
 
 class SimplePRNG:
     """Simple LCG PRNG for cross-language reproducibility."""
@@ -44,6 +44,7 @@ class SimplePRNG:
 @dataclass
 class SimulatedObject:
     """A simulated moving object."""
+
     x: float
     y: float
     vx: float
@@ -56,7 +57,7 @@ class SimulatedObject:
         self.x += self.vx * dt
         self.y += self.vy * dt
 
-    def get_bbox(self) -> Tuple[float, float, float, float]:
+    def get_bbox(self) -> tuple[float, float, float, float]:
         """Get bounding box as (x1, y1, x2, y2)."""
         return (
             self.x - self.width / 2,
@@ -78,7 +79,7 @@ def generate_scenario(
     rng = SimplePRNG(seed)
 
     # Initialize objects with random positions and velocities
-    objects: List[SimulatedObject] = []
+    objects: list[SimulatedObject] = []
     for _ in range(num_objects):
         obj = SimulatedObject(
             x=rng.next_range(100, 900),
@@ -105,23 +106,27 @@ def generate_scenario(
                 noise_x2 = rng.next_range(-noise_std, noise_std)
                 noise_y2 = rng.next_range(-noise_std, noise_std)
 
-                detections.append({
-                    "bbox": [
-                        x1 + noise_x1,
-                        y1 + noise_y1,
-                        x2 + noise_x2,
-                        y2 + noise_y2,
-                    ],
-                    "ground_truth_id": obj_idx,
-                })
+                detections.append(
+                    {
+                        "bbox": [
+                            x1 + noise_x1,
+                            y1 + noise_y1,
+                            x2 + noise_x2,
+                            y2 + noise_y2,
+                        ],
+                        "ground_truth_id": obj_idx,
+                    }
+                )
 
             # Move object
             obj.step()
 
-        frames.append({
-            "frame_id": frame_idx,
-            "detections": detections,
-        })
+        frames.append(
+            {
+                "frame_id": frame_idx,
+                "detections": detections,
+            }
+        )
 
     return {
         "seed": seed,
@@ -158,7 +163,9 @@ def main():
         if force or not Path(output_path).exists():
             print(f"Generating {name} scenario ({num_objects} objects, {num_frames} frames)...")
         else:
-            print(f"Skipping {name} scenario ({num_objects} objects, {num_frames} frames)... Already exists!")
+            print(
+                f"Skipping {name} scenario ({num_objects} objects, {num_frames} frames)... Already exists!"
+            )
             continue
 
         scenario = generate_scenario(

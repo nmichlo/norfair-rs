@@ -20,14 +20,12 @@ Examples:
 """
 
 import json
-import os
 import sys
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 from norfair import Detection, Tracker
-
 
 # Tracker configuration - must match benchmark settings
 TRACKER_CONFIG = {
@@ -92,10 +90,12 @@ def generate_fixture(scenario_name: str) -> dict:
             bbox = det["bbox"]
             # norfair expects shape (N, 2) for N points
             # For bounding boxes, use top-left and bottom-right corners
-            points = np.array([
-                [bbox[0], bbox[1]],  # top-left
-                [bbox[2], bbox[3]],  # bottom-right
-            ])
+            points = np.array(
+                [
+                    [bbox[0], bbox[1]],  # top-left
+                    [bbox[2], bbox[3]],  # bottom-right
+                ]
+            )
             detections.append(Detection(points=points))
 
         # Update tracker
@@ -109,11 +109,13 @@ def generate_fixture(scenario_name: str) -> dict:
             "all_objects": [tracked_object_to_dict(obj) for obj in tracker.tracked_objects],
         }
 
-        steps.append({
-            "frame_id": frame_id,
-            "inputs": inputs,
-            "outputs": outputs,
-        })
+        steps.append(
+            {
+                "frame_id": frame_id,
+                "inputs": inputs,
+                "outputs": outputs,
+            }
+        )
 
     return {
         "tracker_config": TRACKER_CONFIG,

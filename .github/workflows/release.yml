@@ -3,13 +3,31 @@ name: Release
 on:
   push:
     tags: ['v*']
-  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  # Fail fast if Cargo.toml version doesn't match the git tag
+  version-check:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v6
+      - name: Verify version matches tag
+        run: |
+          CARGO_VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          TAG_VERSION=${GITHUB_REF_NAME#v}
+          echo "Cargo.toml version: $CARGO_VERSION"
+          echo "Git tag version:    $TAG_VERSION"
+          if [ "$CARGO_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::Version mismatch! Cargo.toml has $CARGO_VERSION but tag is v$TAG_VERSION"
+            exit 1
+          fi
+          echo "Version check passed!"
+
   python-build:
+    needs: [version-check]
     strategy:
       matrix:
         include:
@@ -37,6 +55,7 @@ jobs:
           path: dist
 
   python-sdist:
+    needs: [version-check]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -73,6 +92,7 @@ jobs:
   # https://crates.io/docs/trusted-publishing
   rust-publish:
     name: Publish to crates.io
+    needs: [version-check]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     environment: release  # Optional: for enhanced security

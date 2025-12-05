@@ -2,18 +2,16 @@
 requires = ["maturin>=1.4,<2.0"]
 build-backend = "maturin"
 
+# ===== METADATA ===== #
+
 [project]
 name = "norfair_rs"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Fast object tracking library - Rust implementation of norfair"
 readme = "README.md"
 license = { text = "BSD-3-Clause" }
-requires-python = ">=3.12"
 keywords = ["tracking", "object-tracking", "kalman-filter", "computer-vision", "norfair"]
 classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "Intended Audience :: Science/Research",
     "License :: OSI Approved :: BSD License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
@@ -21,9 +19,12 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Rust",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
-    "Topic :: Scientific/Engineering :: Image Processing",
 ]
+urls = { Homepage = "https://github.com/nmichlo/norfair-rs", Repository = "https://github.com/nmichlo/norfair-rs" }
+
+# ===== DEPENDENCIES ===== #
+
+requires-python = ">=3.12"
 dependencies = [
     "numpy>=1.26",
 ]
@@ -39,20 +40,31 @@ test-compat = [
     "opencv-python>=4.0",
 ]
 
-[project.urls]
-Homepage = "https://github.com/nmichlo/norfair-rs"
-Repository = "https://github.com/nmichlo/norfair-rs"
+[dependency-groups]
+dev = [
+    "maturin>=1.10.2",
+    "norfair>=2.3.0",
+    "pytest>=9.0.1",
+    "pre-commit>=4.0.0",
+    "ruff>=0.8.0",
+]
+
+# ===== MATURIN ===== #
 
 [tool.maturin]
 features = ["python"]
 python-source = "python"
 module-name = "norfair_rs._norfair_rs"
 
+# ===== PYTEST ===== #
+
 [tool.pytest.ini_options]
 testpaths = ["python/tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
+
+# ===== RUFF ===== #
 
 [tool.ruff]
 line-length = 100
@@ -71,12 +83,3 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.ruff.format]
 quote-style = "double"
-
-[dependency-groups]
-dev = [
-    "maturin>=1.10.2",
-    "norfair>=2.3.0",
-    "pytest>=9.0.1",
-    "pre-commit>=4.0.0",
-    "ruff>=0.8.0",
-]

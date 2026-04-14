@@ -62,14 +62,14 @@ impl CustomDistance {
         objects: &[&TrackedObject],
         candidates: &[&TrackedObject],
     ) -> DMatrix<f64> {
-        // Create temporary detections from candidate estimates
+        // Create temporary detections from candidate estimates, preserving embeddings
         let temp_detections: Vec<Detection> = candidates
             .iter()
             .map(|obj| Detection {
                 points: obj.estimate.clone(),
                 scores: None,
                 label: obj.label.clone(),
-                embedding: None,
+                embedding: obj.last_detection.as_ref().and_then(|d| d.embedding.clone()),
                 data: None,
                 absolute_points: Some(obj.estimate.clone()),
                 age: Some(obj.age),
@@ -151,14 +151,14 @@ impl DistanceFunction {
         candidates: &[&TrackedObject],
     ) -> DMatrix<f64> {
         // For built-in functions, create temporary detections from candidate estimates
-        // and use the standard distance computation
+        // and use the standard distance computation, preserving embeddings for ReID
         let temp_detections: Vec<Detection> = candidates
             .iter()
             .map(|obj| Detection {
                 points: obj.estimate.clone(),
                 scores: None,
                 label: obj.label.clone(),
-                embedding: None,
+                embedding: obj.last_detection.as_ref().and_then(|d| d.embedding.clone()),
                 data: None,
                 absolute_points: Some(obj.estimate.clone()),
                 age: Some(obj.age),

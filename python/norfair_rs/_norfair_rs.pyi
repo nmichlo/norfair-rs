@@ -190,7 +190,7 @@ class Tracker:
         | NoFilterFactory
         | None = None,
         past_detections_length: int = 4,
-        reid_distance_function: Callable[[TrackedObject, TrackedObject], float] | None = None,
+        reid_distance_function: Callable[[Detection, TrackedObject], float] | None = None,
         reid_distance_threshold: float = 0.0,
         reid_hit_counter_max: int | None = None,
     ) -> None:

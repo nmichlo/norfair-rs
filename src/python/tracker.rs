@@ -254,7 +254,7 @@ impl PyTracker {
         self.inner
             .tracked_objects
             .iter()
-            .filter(|obj| !obj.is_initializing)
+            .filter(|obj| !obj.is_initializing && obj.hit_counter >= 0)
             .map(|obj| PyTrackedObject::from_tracked_object(obj, None))
             .collect()
     }

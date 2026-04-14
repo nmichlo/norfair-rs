@@ -69,7 +69,10 @@ impl CustomDistance {
                 points: obj.estimate.clone(),
                 scores: None,
                 label: obj.label.clone(),
-                embedding: obj.last_detection.as_ref().and_then(|d| d.embedding.clone()),
+                embedding: obj
+                    .last_detection
+                    .as_ref()
+                    .and_then(|d| d.embedding.clone()),
                 data: None,
                 absolute_points: Some(obj.estimate.clone()),
                 age: Some(obj.age),
@@ -158,7 +161,10 @@ impl DistanceFunction {
                 points: obj.estimate.clone(),
                 scores: None,
                 label: obj.label.clone(),
-                embedding: obj.last_detection.as_ref().and_then(|d| d.embedding.clone()),
+                embedding: obj
+                    .last_detection
+                    .as_ref()
+                    .and_then(|d| d.embedding.clone()),
                 data: None,
                 absolute_points: Some(obj.estimate.clone()),
                 age: Some(obj.age),

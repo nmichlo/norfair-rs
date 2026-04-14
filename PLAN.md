@@ -51,6 +51,12 @@ Added 4 new fixture test scenarios covering different tracker configurations:
 **Key bugfix during fixture implementation:**
 - Fixed object categorization timing: `alive_initialized_indices` must be computed BEFORE `tracker_step()` (hit_counter decrement), not after. Python categorizes objects before `tracker_step()` so objects with `hit_counter=0` are still "alive" for matching.
 
+**Key bugfixes during ReID & Embedding investigation (2026-04-14):**
+- **Preserved embeddings in ReID:** Fixed a bug where embeddings were lost when creating temporary detections for ReID matching. ReID distance functions (e.g. Cosine similarity) now have access to embedding data.
+- **Fixed `get_active_objects()` filtering:** Updated Python wrapper to correctly filter out "dead" objects (hit_counter < 0), matching original norfair behavior.
+- **Corrected ReID type hints:** Updated `_norfair_rs.pyi` to reflect that `reid_distance_function` receives `(Detection, TrackedObject)` in the Python callback.
+- **Added permanent ReID embedding tests:** Integrated `test_reid_with_embeddings` and `test_reid_callback_types` into `python/tests/test_tracker.py`.
+
 ### ReID Implementation Complete (2025-12-05)
 
 Implemented full Re-Identification (ReID) support matching Python norfair behavior:

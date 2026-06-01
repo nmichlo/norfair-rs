@@ -20,7 +20,7 @@ python = ["dep:pyo3", "dep:numpy"]
 
 [dependencies]
 # Numerical computing - using nalgebra for pure Rust, no BLAS required
-nalgebra = "0.34"
+nalgebra = "0.35"
 
 # Stack-allocated small vectors for hot paths
 smallvec = "1.13"

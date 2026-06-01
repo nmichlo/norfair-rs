@@ -255,14 +255,27 @@ impl TrackedObject {
     ///
     /// # Arguments
     /// * `absolute` - If true, return in absolute (world) coordinates
+    ///   (the Kalman filter's internal frame when a coordinate
+    ///   transformation is active); if false (default), return in
+    ///   relative (camera/image) coordinates.
     ///
     /// # Returns
     /// Position estimate matrix (n_points x n_dims)
+    ///
+    /// # Semantics
+    /// Matches Python norfair: `self.estimate` is kept in the RELATIVE
+    /// (camera) frame so distance functions can compare it directly with
+    /// `Detection::points` (also relative). To recover the ABSOLUTE
+    /// (world) frame — the frame the Kalman filter operates in when a
+    /// coordinate transform is supplied — we invert `abs_to_rel` via
+    /// `rel_to_abs` using the last-applied transform.
     pub fn get_estimate(&self, absolute: bool) -> DMatrix<f64> {
         if absolute {
             if let Some(ref transform) = self.last_coord_transform {
                 return transform.rel_to_abs(&self.estimate);
             }
+            // No transform ever applied → relative == absolute.
+            return self.estimate.clone();
         }
         self.estimate.clone()
     }
@@ -316,8 +329,14 @@ impl TrackedObject {
             self.conditionally_add_to_past_detections(det.clone(), past_detections_length);
         }
 
-        // Update cached estimate from new filter
-        self.estimate = self.filter.get_state();
+        // Update cached estimate from new filter (convert absolute state
+        // to relative coordinates so `estimate` keeps the Python-norfair
+        // invariant of being in the camera/image frame).
+        let abs_state = self.filter.get_state();
+        self.estimate = match self.last_coord_transform.as_ref() {
+            Some(t) => t.abs_to_rel(&abs_state),
+            None => abs_state,
+        };
     }
 
     /// Add detection to past_detections, maintaining uniform distribution.
@@ -644,5 +663,32 @@ mod tests {
         assert_eq!(estimate[(0, 1)], 2.0);
         assert_eq!(estimate[(1, 0)], 3.0);
         assert_eq!(estimate[(1, 1)], 4.0);
+    }
+
+    /// Semantics regression: `obj.estimate` is the RELATIVE (camera-frame)
+    /// position, exactly matching Python norfair's `TrackedObject.estimate`
+    /// attribute. `get_estimate(absolute=true)` must recover the ABSOLUTE
+    /// (world-frame) coordinate by applying `rel_to_abs`.
+    #[test]
+    fn test_get_estimate_relative_is_default_absolute_applies_transform() {
+        use crate::camera_motion::TranslationTransformation;
+
+        let mut obj = TrackedObject::default();
+        // Suppose the camera has panned such that scene features appear to
+        // move by (-0.4, +0.2) between the reference frame and now. That
+        // flow is what Norfair calls the "movement vector".
+        obj.last_coord_transform = Some(Box::new(TranslationTransformation::new([-0.4, 0.2])));
+        // `estimate` stays in the relative frame (image-frame position).
+        obj.estimate = DMatrix::from_row_slice(1, 2, &[0.1, 0.6]);
+
+        // Default (absolute=false) returns relative as-is.
+        let rel = obj.get_estimate(false);
+        assert!((rel[(0, 0)] - 0.1).abs() < 1e-12);
+        assert!((rel[(0, 1)] - 0.6).abs() < 1e-12);
+
+        // Absolute applies rel_to_abs = rel - movement.
+        let abs = obj.get_estimate(true);
+        assert!((abs[(0, 0)] - (0.1 - (-0.4))).abs() < 1e-12); // 0.5
+        assert!((abs[(0, 1)] - (0.6 - 0.2)).abs() < 1e-12); // 0.4
     }
 }

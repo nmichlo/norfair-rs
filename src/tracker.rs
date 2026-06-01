@@ -1239,16 +1239,18 @@ mod tests {
         // Note: This depends on implementation - Rust uses factory pattern
     }
 
-    /// When a CoordinateTransformation starts being applied mid-track (i.e.
-    /// the previous frame had no transform, and this one does), the filter
-    /// state that was accumulated in the "identity" frame must be rebased
-    /// into the new absolute frame. Without rebasing, the first match
-    /// after the transition sees the predicted state in the old frame and
-    /// the measurement in the new frame, which for a significant movement
-    /// vector means the track either fails to match or matches with a
-    /// filter state that drifts far outside the valid image range.
+    /// Camera-motion correctness (matches Python norfair): the Kalman filter
+    /// lives in a fixed ABSOLUTE world frame and is NOT rebased when the
+    /// coordinate transform changes between frames. For a world-static object
+    /// under a panning camera, the absolute estimate must stay put while the
+    /// relative estimate tracks the moving image position.
+    ///
+    /// This is the anti-regression guard for the removed "rebase filter state
+    /// on transform change" logic: reintroducing the rebase shifts the
+    /// absolute state by -Δm each frame, so `get_estimate(true)` would drift
+    /// away from the true world position and this test would fail.
     #[test]
-    fn test_rebasing_on_transform_introduction_keeps_relative_position_stable() {
+    fn test_world_static_object_under_camera_pan_keeps_absolute_estimate() {
         use crate::camera_motion::TranslationTransformation;
 
         let mut config = TrackerConfig::from_distance_name("iou", 0.9);
@@ -1256,10 +1258,76 @@ mod tests {
         config.initialization_delay = 0;
         let mut tracker = Tracker::new(config).unwrap();
 
-        // Frame 1: no transform at all. A box centered at image (0.5, 0.5).
+        // World box (absolute frame), stored as two corner points (2x2) so the
+        // translation transform actually applies (it is a no-op for non-2-col
+        // data). Corners (0.4,0.4)-(0.6,0.6), center (0.5, 0.5), constant.
+        // The camera pans right, so the cumulative movement vector grows and
+        // the object's IMAGE position is `world + movement`. The absolute
+        // measurement fed to the filter (`image - movement`) is the constant
+        // world box every frame.
+        let world = [[0.4_f64, 0.4], [0.6, 0.6]];
+        let movements = [[0.0, 0.0], [0.2, 0.0], [0.4, 0.0]];
+
+        let mut id_before: Option<_> = None;
+        for (frame, m) in movements.iter().enumerate() {
+            // Two corner points (row-major): [x1,y1, x2,y2] = world + movement.
+            let image = [
+                world[0][0] + m[0],
+                world[0][1] + m[1],
+                world[1][0] + m[0],
+                world[1][1] + m[1],
+            ];
+            let det = Detection::new(nalgebra::DMatrix::from_row_slice(2, 2, &image)).unwrap();
+            let transform: Box<dyn crate::camera_motion::CoordinateTransformation> =
+                Box::new(TranslationTransformation::new(*m));
+            let active = tracker.update(vec![det], 1, Some(&*transform));
+
+            assert_eq!(active.len(), 1, "frame {frame}: track must survive");
+            match id_before {
+                None => id_before = Some(active[0].global_id),
+                Some(id) => assert_eq!(
+                    active[0].global_id, id,
+                    "frame {frame}: track id must be preserved"
+                ),
+            }
+
+            // Absolute (world) estimate stays put at the world center (0.5).
+            let abs = active[0].get_estimate(true);
+            let abs_cx = (abs[(0, 0)] + abs[(1, 0)]) * 0.5;
+            assert!(
+                (abs_cx - 0.5).abs() < 0.05,
+                "frame {frame}: absolute cx should stay ~0.5 (world-stable), got {abs_cx}"
+            );
+
+            // Relative estimate tracks the moving image center.
+            let rel = active[0].get_estimate(false);
+            let rel_cx = (rel[(0, 0)] + rel[(1, 0)]) * 0.5;
+            let image_cx = (image[0] + image[2]) * 0.5;
+            assert!(
+                (rel_cx - image_cx).abs() < 0.05,
+                "frame {frame}: relative cx should track image ({image_cx}), got {rel_cx}"
+            );
+        }
+    }
+
+    /// A coordinate transform appearing mid-track (None -> Some) must NOT
+    /// rebase the filter state. norfair only swaps the `abs_to_rel` reference;
+    /// the absolute estimate is unchanged and equals the frame-1 world frame.
+    #[test]
+    fn test_transform_introduction_does_not_rebase_absolute_state() {
+        use crate::camera_motion::TranslationTransformation;
+
+        let mut config = TrackerConfig::from_distance_name("iou", 0.9);
+        config.hit_counter_max = 5;
+        config.initialization_delay = 0;
+        let mut tracker = Tracker::new(config).unwrap();
+
+        // Frame 1: no transform. World == image == box corners (0.4,0.4)-(0.6,0.6),
+        // center (0.5, 0.5). Stored as two corner points (2x2) so a later
+        // translation transform actually applies.
         let det1 = Detection::new(nalgebra::DMatrix::from_row_slice(
-            1,
-            4,
+            2,
+            2,
             &[0.4, 0.4, 0.6, 0.6],
         ))
         .unwrap();
@@ -1267,19 +1335,15 @@ mod tests {
         assert_eq!(active.len(), 1, "Track should exist after frame 1");
         let id_before = active[0].global_id;
 
-        // Frame 2: camera has panned such that a static world feature now
-        // appears shifted by (-0.3, 0) in the image. The detector still
-        // reports the box at the SAME image coordinates (we're testing
-        // that the tracker correctly interprets this as "target moved in
-        // the world" OR "same world target, just compensated") — what's
-        // important is that the track SURVIVES and its relative-frame
-        // output stays sane (inside `[0, 1]`).
+        // Frame 2: a transform appears (camera panned +0.2). The same world
+        // object now images at center 0.7. Absolute estimate must remain at
+        // the frame-1 world center (0.5); relative estimate moves to 0.7.
         let transform: Box<dyn crate::camera_motion::CoordinateTransformation> =
-            Box::new(TranslationTransformation::new([-0.3, 0.0]));
+            Box::new(TranslationTransformation::new([0.2, 0.0]));
         let det2 = Detection::new(nalgebra::DMatrix::from_row_slice(
-            1,
-            4,
-            &[0.4, 0.4, 0.6, 0.6],
+            2,
+            2,
+            &[0.6, 0.4, 0.8, 0.6],
         ))
         .unwrap();
         let active = tracker.update(vec![det2], 1, Some(&*transform));
@@ -1290,76 +1354,18 @@ mod tests {
         );
         assert_eq!(active[0].global_id, id_before, "Track id must be preserved");
 
-        // Relative estimate (what consumers read for display / control)
-        // must be inside the image — not shifted 0.3 beyond the edge by
-        // a naive back-conversion.
-        let rel = active[0].get_estimate(false);
-        let cx = (rel[(0, 0)] + rel[(0, 2)]) * 0.5;
-        let cy = (rel[(0, 1)] + rel[(0, 3)]) * 0.5;
+        let abs = active[0].get_estimate(true);
+        let abs_cx = (abs[(0, 0)] + abs[(1, 0)]) * 0.5;
         assert!(
-            cx > 0.3 && cx < 0.7,
-            "Relative cx should stay around 0.5, got {}",
-            cx
+            (abs_cx - 0.5).abs() < 0.05,
+            "absolute cx must stay at the frame-1 world center 0.5 (no rebase), got {abs_cx}"
         );
-        assert!(
-            cy > 0.3 && cy < 0.7,
-            "Relative cy should stay around 0.5, got {}",
-            cy
-        );
-    }
-
-    /// Rebasing across two NON-identity transforms: filter state accumulated
-    /// under transform A must be converted into transform B's absolute
-    /// frame before matching against measurements in transform B.
-    #[test]
-    fn test_rebasing_between_two_nonidentity_transforms() {
-        use crate::camera_motion::TranslationTransformation;
-
-        let mut config = TrackerConfig::from_distance_name("iou", 0.9);
-        config.hit_counter_max = 5;
-        config.initialization_delay = 0;
-        let mut tracker = Tracker::new(config).unwrap();
-
-        let tf_a: Box<dyn crate::camera_motion::CoordinateTransformation> =
-            Box::new(TranslationTransformation::new([-0.1, 0.0]));
-        let tf_b: Box<dyn crate::camera_motion::CoordinateTransformation> =
-            Box::new(TranslationTransformation::new([-0.25, 0.1]));
-
-        // Frame 1 with transform A. Box centered at image (0.5, 0.5).
-        let det = Detection::new(nalgebra::DMatrix::from_row_slice(
-            1,
-            4,
-            &[0.4, 0.4, 0.6, 0.6],
-        ))
-        .unwrap();
-        let active = tracker.update(vec![det], 1, Some(&*tf_a));
-        assert_eq!(active.len(), 1);
-        let id_before = active[0].global_id;
-
-        // Frame 2 with transform B — same image-frame detection. The
-        // track must survive and output stable relative coords.
-        let det = Detection::new(nalgebra::DMatrix::from_row_slice(
-            1,
-            4,
-            &[0.4, 0.4, 0.6, 0.6],
-        ))
-        .unwrap();
-        let active = tracker.update(vec![det], 1, Some(&*tf_b));
-        assert_eq!(active.len(), 1, "Track must survive transform change");
-        assert_eq!(active[0].global_id, id_before, "Track id must be preserved");
 
         let rel = active[0].get_estimate(false);
-        let cx = (rel[(0, 0)] + rel[(0, 2)]) * 0.5;
-        let cy = (rel[(0, 1)] + rel[(0, 3)]) * 0.5;
+        let rel_cx = (rel[(0, 0)] + rel[(1, 0)]) * 0.5;
         assert!(
-            cx > 0.3 && cx < 0.7,
-            "Relative cx should stay around 0.5, got {}",
-            cx
-        );
-        assert!(
-            cy > 0.3 && cy < 0.7,
-            "Relative cy should stay around 0.5, got {}",
-            cy
+            (rel_cx - 0.7).abs() < 0.05,
+            "relative cx must track the image center 0.7, got {rel_cx}"
         );
     }
 }

@@ -215,41 +215,28 @@ impl Tracker {
             // Kalman predict
             obj.filter.predict();
 
-            // REBASE: if the incoming coordinate transformation differs
-            // from the one previously stored on this object, convert the
-            // filter's position state from the OLD absolute frame into
-            // the NEW absolute frame. Without this step, the filter's
-            // state accumulated under a previous transform (or under the
-            // identity "no transform" state from before any transform was
-            // ever supplied) would mismatch incoming detections after a
-            // sudden reference change — IoU distances explode, tracks
-            // break, output positions jump wildly.
+            // Do NOT rebase the filter state when the coordinate transform
+            // changes between frames. The absolute frame is a fixed world
+            // reference, so the state is invariant across frames; rebasing
+            // (state' = new.rel_to_abs(old.abs_to_rel(state))) injects a
+            // spurious -Δm shift every frame, breaking tracks and diverging
+            // from Python norfair (which never touches `filter.x`).
             //
-            // Generic recipe for any CoordinateTransformation:
-            //   rel      = old.abs_to_rel(state_in_old_abs)
-            //   state'   = new.rel_to_abs(rel)
+            // The use case it was reaching for is real but rare: a genuine
+            // reference *reset* (or transforms that are incremental rather than
+            // anchored to a fixed first-frame world). The correct fix for that
+            // is NOT a per-frame rebase here. Either compose transforms at the
+            // source so the absolute frame stays fixed (norfair's approach), or
+            // — only on the actual reset — rebase the WHOLE Kalman state through
+            // the relative motion T between old and new references:
+            //   x_pos' = T(x_pos)
+            //   x_vel' = J · x_vel        (J = linear part of T, no translation)
+            //   P'     = J · P · Jᵀ       (covariance must be transformed too)
+            // applied once at the discontinuity, not every frame, and ignoring
+            // neither velocity nor covariance (both of which Part B dropped).
             //
-            // Velocity is left untouched here: for translation-only
-            // transforms the scene shift cancels in the derivative, and
-            // the filter will re-converge on velocity within a few
-            // frames via subsequent measurements. For the None → Some
-            // transition (no transform was active previously), `state`
-            // is in the identity (relative) frame, so we can feed it
-            // straight into `new.rel_to_abs`.
-            if let Some(new_transform) = coord_transform {
-                let rebased = match obj.last_coord_transform.as_ref() {
-                    Some(old_transform) => {
-                        let rel = old_transform.abs_to_rel(&obj.filter.get_state());
-                        new_transform.rel_to_abs(&rel)
-                    }
-                    None => new_transform.rel_to_abs(&obj.filter.get_state()),
-                };
-                Self::set_filter_position(&mut obj.filter, &rebased);
-            }
-
-            // Update estimate from filter (in ABSOLUTE frame; the
-            // `estimate` *field* tracks RELATIVE coordinates to match
-            // Python norfair — convert via `abs_to_rel` below).
+            // The `estimate` field tracks RELATIVE coordinates (to match
+            // Python norfair's `estimate`), so convert via `abs_to_rel`.
             let abs_state = obj.filter.get_state();
             obj.estimate = match coord_transform {
                 Some(t) => t.abs_to_rel(&abs_state),
@@ -580,35 +567,6 @@ impl Tracker {
         }
 
         self.tracked_objects.push(obj);
-    }
-
-    /// Overwrite the position components of the filter's state vector
-    /// while preserving velocity components. Used for coordinate-frame
-    /// rebasing when the incoming `CoordinateTransformation` differs
-    /// from the one the filter state was previously accumulating in.
-    fn set_filter_position(filter: &mut crate::filter::FilterEnum, new_position: &DMatrix<f64>) {
-        let dim_z = filter.dim_z();
-        let dim_x = filter.dim_x();
-        let mut state = DVector::zeros(dim_x);
-        {
-            let current = filter.get_state_vector();
-            for i in 0..dim_x {
-                state[i] = current[i];
-            }
-        }
-        // Filter state is laid out as row-major positions followed by
-        // row-major velocities; overwrite only the leading `dim_z` slots.
-        let rows = new_position.nrows();
-        let cols = new_position.ncols();
-        for r in 0..rows {
-            for c in 0..cols {
-                let idx = r * cols + c;
-                if idx < dim_z {
-                    state[idx] = new_position[(r, c)];
-                }
-            }
-        }
-        filter.set_state_vector(&state);
     }
 
     // Internal: build observation matrix for partial observations

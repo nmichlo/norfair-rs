@@ -22,7 +22,7 @@ NDArrayFloat = npt.NDArray[np.float64]
 NDArrayBool = npt.NDArray[np.bool_]
 NDArrayInt = npt.NDArray[np.int32]
 
-class Detection:
+class Detection[T]:
     """
     A detection to be tracked.
 
@@ -42,7 +42,7 @@ class Detection:
 
     points: NDArrayFloat
     scores: NDArrayFloat | None
-    data: Any
+    data: T
     label: str | None
     embedding: NDArrayFloat | None
     absolute_points: NDArrayFloat
@@ -51,7 +51,7 @@ class Detection:
         self,
         points: NDArrayFloat,
         scores: NDArrayFloat | None = None,
-        data: Any = None,
+        data: T = ...,
         label: str | None = None,
         embedding: NDArrayFloat | None = None,
     ) -> None:
@@ -90,7 +90,7 @@ class Detection:
         """
         ...
 
-class TrackedObject:
+class TrackedObject[T]:
     """
     A tracked object maintained by the tracker.
 
@@ -124,13 +124,13 @@ class TrackedObject:
     hit_counter: int
     estimate: NDArrayFloat
     estimate_velocity: NDArrayFloat
-    last_detection: Detection | None
+    last_detection: Detection[T] | None
     last_distance: float | None
     live_points: NDArrayBool
     is_initializing: bool
     label: str | None
     reid_hit_counter: int | None
-    past_detections: list[Detection]
+    past_detections: list[Detection[T]]
     point_hit_counter: NDArrayInt
     hit_counter_is_positive: bool
     reid_hit_counter_is_positive: bool
@@ -156,7 +156,7 @@ class TrackedObject:
         """
         ...
 
-class Tracker:
+class Tracker[T]:
     """
     Object tracker.
 
@@ -178,11 +178,11 @@ class Tracker:
 
     current_object_count: int
     total_object_count: int
-    tracked_objects: list[TrackedObject]
+    tracked_objects: list[TrackedObject[T]]
 
     def __init__(
         self,
-        distance_function: str | Callable[[Detection, TrackedObject], float],
+        distance_function: str | Callable[[Detection[T], TrackedObject[T]], float],
         distance_threshold: float,
         hit_counter_max: int = 15,
         initialization_delay: int | None = None,
@@ -193,7 +193,7 @@ class Tracker:
         | NoFilterFactory
         | None = None,
         past_detections_length: int = 4,
-        reid_distance_function: Callable[[Detection, TrackedObject], float] | None = None,
+        reid_distance_function: Callable[[Detection[T], TrackedObject[T]], float] | None = None,
         reid_distance_threshold: float = 0.0,
         reid_hit_counter_max: int | None = None,
     ) -> None:
@@ -219,10 +219,10 @@ class Tracker:
 
     def update(
         self,
-        detections: list[Detection] | None = None,
+        detections: list[Detection[T]] | None = None,
         period: int = 1,
         coord_transformations: TranslationTransformation | None = None,
-    ) -> list[TrackedObject]:
+    ) -> list[TrackedObject[T]]:
         """
         Update the tracker with new detections.
 
@@ -236,7 +236,7 @@ class Tracker:
         """
         ...
 
-    def get_active_objects(self) -> list[TrackedObject]:
+    def get_active_objects(self) -> list[TrackedObject[T]]:
         """
         Get all currently active (non-initializing) objects.
 
@@ -317,7 +317,7 @@ class Distance:
 
     ...
 
-class ScalarDistance:
+class ScalarDistance[T]:
     """
     Wrapper for scalar distance functions.
 
@@ -327,7 +327,7 @@ class ScalarDistance:
 
     def __init__(
         self,
-        distance_function: Callable[[Detection, TrackedObject], float],
+        distance_function: Callable[[Detection[T], TrackedObject[T]], float],
     ) -> None:
         """
         Create a new ScalarDistance.
@@ -383,7 +383,7 @@ def get_distance_by_name(name: str) -> Distance:
     """
     ...
 
-def frobenius(detection: Detection, tracked_object: TrackedObject) -> float:
+def frobenius[T](detection: Detection[T], tracked_object: TrackedObject[T]) -> float:
     """
     Frobenius norm distance between detection and tracked object.
 
@@ -396,7 +396,7 @@ def frobenius(detection: Detection, tracked_object: TrackedObject) -> float:
     """
     ...
 
-def mean_euclidean(detection: Detection, tracked_object: TrackedObject) -> float:
+def mean_euclidean[T](detection: Detection[T], tracked_object: TrackedObject[T]) -> float:
     """
     Mean Euclidean distance between detection and tracked object.
 
@@ -409,7 +409,7 @@ def mean_euclidean(detection: Detection, tracked_object: TrackedObject) -> float
     """
     ...
 
-def mean_manhattan(detection: Detection, tracked_object: TrackedObject) -> float:
+def mean_manhattan[T](detection: Detection[T], tracked_object: TrackedObject[T]) -> float:
     """
     Mean Manhattan distance between detection and tracked object.
 

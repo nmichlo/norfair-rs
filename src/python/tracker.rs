@@ -36,6 +36,14 @@ pub struct PyTracker {
 
 #[pymethods]
 impl PyTracker {
+    /// Support `Tracker[T]` subscripting at runtime, matching the type stubs.
+    #[classmethod]
+    fn __class_getitem__(
+        cls: &Bound<'_, pyo3::types::PyType>,
+        item: &Bound<'_, PyAny>,
+    ) -> PyResult<Py<PyAny>> {
+        crate::python::generic_alias(cls, item)
+    }
     /// Create a new Tracker.
     ///
     /// Args:

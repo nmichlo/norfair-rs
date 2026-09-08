@@ -106,7 +106,8 @@ impl PyDetection {
     ///             1D arrays like [x, y] are automatically reshaped to [[x, y]].
     ///             Arrays will be converted to float64 dtype.
     ///     scores: Optional per-point confidence scores of shape (n_points,).
-    ///     data: Optional arbitrary user data (not currently used in norfair_rs).
+    ///     data: Optional arbitrary user data. Shared by reference with any
+    ///         copy of this detection, including `TrackedObject.last_detection`.
     ///     label: Optional class label for multi-class tracking.
     ///     embedding: Optional embedding vector for re-identification.
     #[new]

@@ -34,6 +34,7 @@ class Detection:
     Attributes:
         points: Detection points as a numpy array of shape (n_points, n_dims).
         scores: Optional per-point confidence scores of shape (n_points,).
+        data: Optional arbitrary user data, shared by reference between copies.
         label: Optional class label for multi-class tracking.
         embedding: Optional embedding vector for re-identification.
         absolute_points: Points in absolute coordinates (world frame).
@@ -41,6 +42,7 @@ class Detection:
 
     points: NDArrayFloat
     scores: NDArrayFloat | None
+    data: Any
     label: str | None
     embedding: NDArrayFloat | None
     absolute_points: NDArrayFloat
@@ -61,7 +63,8 @@ class Detection:
                     For keypoints: [[x1, y1], [x2, y2], ...]
                     For bounding boxes: [[x1, y1], [x2, y2]] (top-left, bottom-right)
             scores: Optional per-point confidence scores of shape (n_points,).
-            data: Optional arbitrary user data (not currently supported).
+            data: Optional arbitrary user data. Shared by reference with any
+                  copy of this detection, including `TrackedObject.last_detection`.
             label: Optional class label for multi-class tracking.
             embedding: Optional embedding vector for re-identification.
         """

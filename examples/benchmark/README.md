@@ -87,4 +87,3 @@ Optimized greedy matching to use `Vec<bool>` instead of `HashSet<usize>`:
   - `Vec<bool>` for greedy matching (faster than HashSet)
   - Optimized Kalman filter implementation
   - Better memory locality with nalgebra matrices
-

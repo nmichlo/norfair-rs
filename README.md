@@ -188,10 +188,7 @@ tracker = Tracker(
 # Process frames
 for frame in iter_video_frames():
     # Get detections from your detector
-    detections = [
-        Detection(points=np.array([[x1, y1, x2, y2]]))
-        for x1, y1, x2, y2 in detect_objects(frame)
-    ]
+    detections = [Detection(points=np.array([[x1, y1, x2, y2]])) for x1, y1, x2, y2 in detect_objects(frame)]
 
     # Update tracker
     tracked_objects = tracker.update(detections=detections)

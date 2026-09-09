@@ -179,9 +179,7 @@ class TestDistanceFactoryFunctions:
     def test_create_keypoints_voting_distance(self, nf):
         """Test create_keypoints_voting_distance factory function."""
         assert hasattr(nf, "create_keypoints_voting_distance")
-        dist_fn = nf.create_keypoints_voting_distance(
-            keypoint_distance_threshold=10.0, detection_threshold=0.5
-        )
+        dist_fn = nf.create_keypoints_voting_distance(keypoint_distance_threshold=10.0, detection_threshold=0.5)
         assert callable(dist_fn)
 
     def test_create_normalized_mean_euclidean_distance(self, nf):
@@ -309,9 +307,7 @@ class TestDataPreservation:
 
         assert len(objs) == 1
         assert objs[0].last_detection is not None
-        assert (
-            objs[0].last_detection.data == data
-        ), f"Expected data {data}, got {objs[0].last_detection.data}"
+        assert objs[0].last_detection.data == data, f"Expected data {data}, got {objs[0].last_detection.data}"
 
     def test_data_preserved_through_multiple_updates(self, nf):
         """Test that data is preserved through multiple tracking updates."""
@@ -333,9 +329,7 @@ class TestDataPreservation:
         det2 = nf.Detection(points=np.array([[1.1, 1.1]]), data=data2)
         objs = tracker.update([det2])
         assert len(objs) == 1
-        assert (
-            objs[0].last_detection.data == data2
-        ), f"Expected data {data2}, got {objs[0].last_detection.data}"
+        assert objs[0].last_detection.data == data2, f"Expected data {data2}, got {objs[0].last_detection.data}"
 
     def test_data_preserved_in_past_detections(self, nf):
         """Test that data is preserved in past_detections."""
@@ -366,9 +360,7 @@ class TestDataPreservation:
             # Check each detection has the right data
             for i, det in enumerate(obj.past_detections):
                 expected_data = {"frame": i, "value": i * 10}
-                assert (
-                    det.data == expected_data
-                ), f"Detection {i}: expected {expected_data}, got {det.data}"
+                assert det.data == expected_data, f"Detection {i}: expected {expected_data}, got {det.data}"
         else:
             # norfair_rs stores fewer past_detections (implementation difference)
             assert len(obj.past_detections) >= 2, "Should have at least 2 past detections"
@@ -379,9 +371,7 @@ class TestDataPreservation:
                 offset = 3 - len(obj.past_detections)
                 frame_num = i + offset
                 expected_data = {"frame": frame_num, "value": frame_num * 10}
-                assert (
-                    det.data == expected_data
-                ), f"Detection {i}: expected {expected_data}, got {det.data}"
+                assert det.data == expected_data, f"Detection {i}: expected {expected_data}, got {det.data}"
 
     def test_different_data_for_different_objects(self, nf):
         """Test that different tracked objects maintain different data."""
@@ -405,12 +395,8 @@ class TestDataPreservation:
         obj1 = objs[0] if objs[0].estimate[0, 0] < 10 else objs[1]
         obj2 = objs[1] if objs[1].estimate[0, 0] > 40 else objs[0]
 
-        assert (
-            obj1.last_detection.data == data1
-        ), f"Object 1: expected {data1}, got {obj1.last_detection.data}"
-        assert (
-            obj2.last_detection.data == data2
-        ), f"Object 2: expected {data2}, got {obj2.last_detection.data}"
+        assert obj1.last_detection.data == data1, f"Object 1: expected {data1}, got {obj1.last_detection.data}"
+        assert obj2.last_detection.data == data2, f"Object 2: expected {data2}, got {obj2.last_detection.data}"
 
     def test_data_none_when_not_provided(self, nf):
         """Test that data is None when not provided to Detection."""

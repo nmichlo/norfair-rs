@@ -8,10 +8,13 @@ on:
 
 jobs:
   release:
-    # a reusable workflow cannot hold more permission than its caller, and this
-    # one commits the Cargo.toml bump, pushes tags and creates releases.
+    # a reusable workflow cannot hold more permission than its caller. this one
+    # commits the Cargo.toml bump, pushes tags and creates releases (`contents`),
+    # and publishes to PyPI and crates.io over OIDC (`id-token`). omitting either
+    # fails the whole run at startup.
     permissions:
       contents: write
+      id-token: write
     uses: nmichlo/.github/.github/workflows/release-rust.yaml@main
     with:
       package-name: norfair-rs

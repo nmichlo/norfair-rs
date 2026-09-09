@@ -125,11 +125,7 @@ def compare_tracked_objects(
 
         msg += "\nActual objects:\n"
         for obj in actual:
-            est = (
-                obj.get_estimate(absolute=True).tolist()
-                if hasattr(obj, "get_estimate")
-                else obj.estimate.tolist()
-            )
+            est = obj.get_estimate(absolute=True).tolist() if hasattr(obj, "get_estimate") else obj.estimate.tolist()
             msg += f"  ID={obj.id}, initializing_id={getattr(obj, 'initializing_id', None)}, "
             msg += f"estimate={est}, age={obj.age}, "
             msg += f"hit_counter={obj.hit_counter}, is_initializing={obj.is_initializing}, "
@@ -148,11 +144,7 @@ def compare_tracked_objects(
             )
 
         # Compare initializing_id
-        act_init_id = (
-            getattr(act, "initializing_id", None)
-            if getattr(act, "initializing_id", None) is not None
-            else -1
-        )
+        act_init_id = getattr(act, "initializing_id", None) if getattr(act, "initializing_id", None) is not None else -1
         if exp.get("initializing_id") != act_init_id:
             raise AssertionError(
                 f"[{impl_name}] Step {step_idx} frame {frame_id}: Object {i} initializing_id mismatch: "
@@ -245,9 +237,7 @@ def run_fixture_test_rs(scenario: str):
         # Sort by initializing_id to ensure consistent ordering
         all_objects = sorted(
             tracker.tracked_objects,
-            key=lambda obj: obj.initializing_id
-            if obj.initializing_id is not None
-            else float("inf"),
+            key=lambda obj: obj.initializing_id if obj.initializing_id is not None else float("inf"),
         )
         compare_tracked_objects(
             step_idx,
@@ -299,9 +289,7 @@ def run_fixture_test_py(scenario: str):
         # Sort by initializing_id to ensure consistent ordering
         all_objects = sorted(
             tracker.tracked_objects,
-            key=lambda obj: obj.initializing_id
-            if obj.initializing_id is not None
-            else float("inf"),
+            key=lambda obj: obj.initializing_id if obj.initializing_id is not None else float("inf"),
         )
         compare_tracked_objects(
             step_idx,

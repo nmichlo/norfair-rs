@@ -28,10 +28,10 @@ Examples:
 import json
 import sys
 from pathlib import Path
-from typing import Any
 
 import numpy as np
-from norfair import Detection, Tracker
+from norfair import Detection
+from norfair import Tracker
 
 # ============================================================================
 # Tracker Configurations
@@ -126,7 +126,11 @@ def load_scenario(name: str) -> dict:
         return json.load(f)
 
 
-def tracked_object_to_dict(obj) -> dict[str, Any]:
+# a JSON document -- these dicts are written straight out with `json.dump`
+type Json = str | int | float | bool | None | list[Json] | dict[str, Json]
+
+
+def tracked_object_to_dict(obj) -> dict[str, Json]:
     """Convert a TrackedObject to a dictionary with full state."""
     return {
         "id": obj.id,

@@ -71,15 +71,9 @@ class StabilityTracker:
         is_exact = py_id == rs_id
 
         if is_exact:
-            return (
-                (COL_EXACT_MATCH, "") if is_stable else (COL_WEAK_MATCH, f" ({record['streak']})")
-            )
+            return (COL_EXACT_MATCH, "") if is_stable else (COL_WEAK_MATCH, f" ({record['streak']})")
         else:
-            return (
-                (COL_STABLE_MAP, " (Map)")
-                if is_stable
-                else (COL_WEAK_MATCH, f" ({record['streak']})")
-            )
+            return (COL_STABLE_MAP, " (Map)") if is_stable else (COL_WEAK_MATCH, f" ({record['streak']})")
 
 
 # ==========================================
@@ -257,11 +251,7 @@ def main():
             # Adjust Entity Count
             if len(entities) < target_n:
                 is_box = np.random.rand() > 0.5
-                entities.append(
-                    SimEntity(
-                        np.random.randint(0, WIDTH - 50), np.random.randint(0, HEIGHT - 50), is_box
-                    )
-                )
+                entities.append(SimEntity(np.random.randint(0, WIDTH - 50), np.random.randint(0, HEIGHT - 50), is_box))
             elif len(entities) > target_n:
                 entities.pop()
 

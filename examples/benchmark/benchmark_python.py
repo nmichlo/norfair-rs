@@ -44,14 +44,16 @@ def run_benchmark(
     if not use_norfair_rs:
         # original library
         try:
-            from norfair import Detection, Tracker
+            from norfair import Detection
+            from norfair import Tracker
         except ImportError:
             print("Error: norfair not installed. Run: uv pip install norfair")
             sys.exit(1)
     else:
         # drop in replacement!
         try:
-            from norfair_rs import Detection, Tracker
+            from norfair_rs import Detection
+            from norfair_rs import Tracker
         except ImportError:
             print("Error: norfair_rs not installed. Run: uv run maturin develop --release")
             sys.exit(1)
@@ -119,12 +121,8 @@ def run_benchmark(
 
 def main():
     parser = argparse.ArgumentParser(description="Benchmark norfair tracking")
-    parser.add_argument(
-        "scenario", nargs="?", default="medium", help="Scenario name (default: medium)"
-    )
-    parser.add_argument(
-        "--norfair-rs", action="store_true", help="Use norfair_rs instead of norfair"
-    )
+    parser.add_argument("scenario", nargs="?", default="medium", help="Scenario name (default: medium)")
+    parser.add_argument("--norfair-rs", action="store_true", help="Use norfair_rs instead of norfair")
     args = parser.parse_args()
 
     use_norfair_rs = args.norfair_rs

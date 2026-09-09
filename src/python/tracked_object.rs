@@ -76,6 +76,14 @@ impl PyTrackedObject {
 
 #[pymethods]
 impl PyTrackedObject {
+    /// Support `TrackedObject[T]` subscripting at runtime, matching the type stubs.
+    #[classmethod]
+    fn __class_getitem__(
+        cls: &Bound<'_, pyo3::types::PyType>,
+        item: &Bound<'_, PyAny>,
+    ) -> PyResult<Py<PyAny>> {
+        crate::python::generic_alias(cls, item)
+    }
     /// Permanent instance ID (None while initializing).
     #[getter]
     fn id(&self) -> Option<i32> {

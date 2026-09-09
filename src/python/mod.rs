@@ -24,6 +24,20 @@ pub use tracked_object::PyTrackedObject;
 pub use tracker::PyTracker;
 pub use transforms::PyTranslationTransformation;
 
+/// Build a `types.GenericAlias` so a `#[pyclass]` can be subscripted at runtime.
+///
+/// `Detection`, `TrackedObject` and `Tracker` are generic in the type stubs,
+/// parameterized by the type of the user payload carried in `Detection.data`.
+/// PyO3 classes are not subscriptable by default, so `Detection[MyPayload]`
+/// would raise `TypeError` even though the annotation is valid.
+pub(crate) fn generic_alias(
+    cls: &Bound<'_, pyo3::types::PyType>,
+    item: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyAny>> {
+    let types = cls.py().import("types")?;
+    Ok(types.getattr("GenericAlias")?.call1((cls, item))?.unbind())
+}
+
 /// Reset global ID counter (for testing only).
 ///
 /// This resets the global ID counter used for TrackedObject global IDs.

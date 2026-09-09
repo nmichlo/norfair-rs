@@ -97,6 +97,14 @@ impl PyDetection {
 
 #[pymethods]
 impl PyDetection {
+    /// Support `Detection[T]` subscripting at runtime, matching the type stubs.
+    #[classmethod]
+    fn __class_getitem__(
+        cls: &Bound<'_, pyo3::types::PyType>,
+        item: &Bound<'_, PyAny>,
+    ) -> PyResult<Py<PyAny>> {
+        crate::python::generic_alias(cls, item)
+    }
     /// Create a new Detection.
     ///
     /// Args:
@@ -106,7 +114,8 @@ impl PyDetection {
     ///             1D arrays like [x, y] are automatically reshaped to [[x, y]].
     ///             Arrays will be converted to float64 dtype.
     ///     scores: Optional per-point confidence scores of shape (n_points,).
-    ///     data: Optional arbitrary user data (not currently used in norfair_rs).
+    ///     data: Optional arbitrary user data. Shared by reference with any
+    ///         copy of this detection, including `TrackedObject.last_detection`.
     ///     label: Optional class label for multi-class tracking.
     ///     embedding: Optional embedding vector for re-identification.
     #[new]

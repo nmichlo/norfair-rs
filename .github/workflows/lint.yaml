@@ -1,0 +1,19 @@
+# runs `.pre-commit-config.yaml` verbatim, so `pre-commit run --all-files`
+# locally and CI can never disagree. the cargo fmt/clippy hooks live in that
+# file, so there is no separate rust-lint job.
+
+name: lint
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  pre-commit:
+    uses: nmichlo/.github/.github/workflows/pre-commit.yaml@main
+    with:
+      rust: true
+      # the hooks are cargo fmt/clippy and ruff -- none of them import the
+      # package, so there is no need to spend a Rust build installing it
+      install: false

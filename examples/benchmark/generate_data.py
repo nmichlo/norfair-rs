@@ -251,9 +251,7 @@ def main():
         if force or not Path(output_path).exists():
             print(f"Generating {name} scenario ({num_objects} objects, {num_frames} frames)...")
         else:
-            print(
-                f"Skipping {name} scenario ({num_objects} objects, {num_frames} frames)... Already exists!"
-            )
+            print(f"Skipping {name} scenario ({num_objects} objects, {num_frames} frames)... Already exists!")
             continue
 
         scenario = generate_scenario(

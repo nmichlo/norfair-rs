@@ -20,17 +20,15 @@
 
 import numpy as np
 import pytest
-from norfair_rs import (
-    Detection,
-    NoFilterFactory,
-    ScalarDistance,
-    Tracker,
-    VectorizedDistance,
-    create_keypoints_voting_distance,
-    create_normalized_mean_euclidean_distance,
-    frobenius,
-    get_distance_by_name,
-)
+from norfair_rs import Detection
+from norfair_rs import NoFilterFactory
+from norfair_rs import ScalarDistance
+from norfair_rs import Tracker
+from norfair_rs import VectorizedDistance
+from norfair_rs import create_keypoints_voting_distance
+from norfair_rs import create_normalized_mean_euclidean_distance
+from norfair_rs import frobenius
+from norfair_rs import get_distance_by_name
 
 # NOTE: ScipyDistance is not available in norfair_rs
 # Use get_distance_by_name("euclidean") etc instead
@@ -265,9 +263,7 @@ def test_iou():
 
 
 def test_keypoint_vote(mock_obj, mock_det):
-    vote_d = create_keypoints_voting_distance(
-        keypoint_distance_threshold=np.sqrt(8), detection_threshold=0.5
-    )
+    vote_d = create_keypoints_voting_distance(keypoint_distance_threshold=np.sqrt(8), detection_threshold=0.5)
 
     # perfect match
     det = mock_det(points=[[0, 0], [1, 1], [2, 2]], scores=0.6)
@@ -372,9 +368,7 @@ def test_scalar_distance(mock_obj, mock_det):
 
 # SKIP: VectorizedDistance wrapper for Python callables is a different API in norfair_rs
 # In norfair_rs, pass Python callables directly to Tracker(distance_function=...) instead
-@pytest.mark.skip(
-    reason="VectorizedDistance wrapper API differs - pass callables directly to Tracker"
-)
+@pytest.mark.skip(reason="VectorizedDistance wrapper API differs - pass callables directly to Tracker")
 def test_vectorized_distance(mock_obj, mock_det):
     def distance_function(cands, objs):
         distance_matrix = np.full(
@@ -467,9 +461,7 @@ def test_tracker_callable_distance_high_distance():
         det = Detection(np.array([[100.0, 100.0]]))
         tracker.update([det])
 
-    assert (
-        tracker.total_object_count >= 2
-    ), f"Should create multiple objects, got {tracker.total_object_count}"
+    assert tracker.total_object_count >= 2, f"Should create multiple objects, got {tracker.total_object_count}"
 
 
 def test_tracker_callable_distance_zero_distance():

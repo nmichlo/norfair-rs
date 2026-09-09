@@ -8,7 +8,6 @@ Compatible with norfair v2.3.0 API.
 """
 
 from collections.abc import Callable
-from typing import Any
 
 import numpy as np
 import numpy.typing as npt
@@ -78,9 +77,12 @@ class Detection[T]:
         """Dimensionality of points (typically 2 for 2D tracking)."""
         ...
 
-    def to_norfair(self) -> Any:
+    def to_norfair(self) -> object:
         """
         Convert to a native norfair.Detection if norfair is installed.
+
+        Typed as `object` because `norfair` is an optional dependency and cannot
+        be named here. Narrow it at the call site if you need the concrete type.
 
         Returns:
             A norfair.Detection object with the same data.
@@ -188,10 +190,7 @@ class Tracker[T]:
         initialization_delay: int | None = None,
         pointwise_hit_counter_max: int = 4,
         detection_threshold: float = 0.0,
-        filter_factory: OptimizedKalmanFilterFactory
-        | FilterPyKalmanFilterFactory
-        | NoFilterFactory
-        | None = None,
+        filter_factory: OptimizedKalmanFilterFactory | FilterPyKalmanFilterFactory | NoFilterFactory | None = None,
         past_detections_length: int = 4,
         reid_distance_function: Callable[[Detection[T], TrackedObject[T]], float] | None = None,
         reid_distance_threshold: float = 0.0,

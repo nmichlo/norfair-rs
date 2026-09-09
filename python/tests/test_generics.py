@@ -10,7 +10,9 @@ Payload round-tripping itself is covered by `test_compatibility.py`.
 """
 
 import pytest
-from norfair_rs import Detection, TrackedObject, Tracker
+from norfair_rs import Detection
+from norfair_rs import TrackedObject
+from norfair_rs import Tracker
 
 
 @pytest.mark.parametrize("cls", [Detection, TrackedObject, Tracker])

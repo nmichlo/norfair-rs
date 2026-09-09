@@ -71,34 +71,28 @@ from collections.abc import Callable
 import numpy as np
 
 # Test utilities (internal use)
+from norfair_rs._norfair_rs import Detection  # Core classes - FULLY COMPATIBLE with norfair
+from norfair_rs._norfair_rs import FilterPyKalmanFilterFactory
+from norfair_rs._norfair_rs import NoFilterFactory
+from norfair_rs._norfair_rs import OptimizedKalmanFilterFactory  # Filter factories - FULLY COMPATIBLE with norfair
+from norfair_rs._norfair_rs import ScalarDistance  # Distance classes - norfair_rs specific wrappers
+from norfair_rs._norfair_rs import TrackedObject
+from norfair_rs._norfair_rs import Tracker
 from norfair_rs._norfair_rs import (
-    # Core classes - FULLY COMPATIBLE with norfair
-    Detection,
-    FilterPyKalmanFilterFactory,
-    NoFilterFactory,
-    # Filter factories - FULLY COMPATIBLE with norfair
-    OptimizedKalmanFilterFactory,
-    # Distance classes - norfair_rs specific wrappers
-    ScalarDistance,
-    TrackedObject,
-    Tracker,
     # Transformations - PARTIALLY COMPATIBLE
     # Only TranslationTransformation is available.
     # HomographyTransformation requires OpenCV and is NOT AVAILABLE.
     TranslationTransformation,
-    VectorizedDistance,
-    __norfair_compat_version__,
-    # Version info
-    __version__,
-    _reset_global_id_counter,  # noqa F401
-    # helper? internal?
-    frobenius,
-    # Distance functions - FULLY COMPATIBLE with norfair
-    get_distance_by_name,
-    iou,
-    mean_euclidean,
-    mean_manhattan,
 )
+from norfair_rs._norfair_rs import VectorizedDistance
+from norfair_rs._norfair_rs import __norfair_compat_version__
+from norfair_rs._norfair_rs import __version__  # Version info
+from norfair_rs._norfair_rs import _reset_global_id_counter  # noqa F401
+from norfair_rs._norfair_rs import frobenius  # helper? internal?
+from norfair_rs._norfair_rs import get_distance_by_name  # Distance functions - FULLY COMPATIBLE with norfair
+from norfair_rs._norfair_rs import iou
+from norfair_rs._norfair_rs import mean_euclidean
+from norfair_rs._norfair_rs import mean_manhattan
 
 # Distance is the type returned by get_distance_by_name()
 # In norfair, this is an internal type. We expose it for type checking.
@@ -184,9 +178,7 @@ def create_normalized_mean_euclidean_distance(
         a float distance value.
     """
 
-    def normalized_mean_euclidean_distance(
-        detection: Detection, tracked_object: TrackedObject
-    ) -> float:
+    def normalized_mean_euclidean_distance(detection: Detection, tracked_object: TrackedObject) -> float:
         """Normalized mean euclidean distance"""
         # calculate distances and normalize by width and height
         difference = (detection.points - tracked_object.estimate).astype(float)

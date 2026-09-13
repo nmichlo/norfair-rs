@@ -243,14 +243,18 @@ impl Tracker {
                 None => abs_state,
             };
 
-            // Update velocity estimate
+            // Update velocity estimate. The state vector's velocity block is a
+            // row-major flattening of the points (matches Python's
+            // `x.T.flatten()[dim_z:].reshape(-1, dim_points)`), so it must be
+            // rebuilt row-major — `DMatrix::from_vec` would fill column-major
+            // and transpose any multi-point layout.
             let state = obj.filter.get_state_vector();
             let dim_z = obj.filter.dim_z();
             if state.len() >= dim_z * 2 {
                 let velocity_flat: Vec<f64> =
                     state.iter().skip(dim_z).take(dim_z).cloned().collect();
                 obj.estimate_velocity =
-                    DMatrix::from_vec(obj.num_points, obj.dim_points, velocity_flat);
+                    DMatrix::from_row_slice(obj.num_points, obj.dim_points, &velocity_flat);
             }
 
             // Store coordinate transform for later use
@@ -1366,6 +1370,50 @@ mod tests {
         assert!(
             (rel_cx - 0.7).abs() < 0.05,
             "relative cx must track the image center 0.7, got {rel_cx}"
+        );
+    }
+
+    /// `estimate_velocity` must be laid out `(num_points, dim_points)` row-major
+    /// like Python's `x.T.flatten()[dim_z:].reshape(-1, dim_points)`. An object
+    /// moving purely along +x must show zero y-velocity in column 1 — a
+    /// column-major rebuild would transpose point 1's x-velocity into (0, 1).
+    #[test]
+    fn test_estimate_velocity_row_major_layout() {
+        let mut config = TrackerConfig::from_distance_name("iou", 0.9);
+        config.hit_counter_max = 10;
+        config.initialization_delay = 0;
+        let mut tracker = Tracker::new(config).unwrap();
+
+        let mut last_velocity = None;
+        for frame in 0..8 {
+            let x = 0.1 + frame as f64 * 0.02;
+            let det = Detection::new(nalgebra::DMatrix::from_row_slice(
+                2,
+                2,
+                &[x, 0.4, x + 0.2, 0.6],
+            ))
+            .unwrap();
+            let active = tracker.update(vec![det], 1, None);
+            assert_eq!(active.len(), 1, "frame {frame}");
+            last_velocity = Some(active[0].estimate_velocity.clone());
+        }
+
+        let vel = last_velocity.unwrap();
+        assert_eq!((vel.nrows(), vel.ncols()), (2, 2));
+        assert!(
+            vel[(0, 0)] > 1e-4,
+            "point 0 x-velocity must be positive, got {}",
+            vel[(0, 0)]
+        );
+        assert!(
+            vel[(0, 1)].abs() < 1e-6,
+            "pure x-motion must have zero y-velocity at (0,1), got {}",
+            vel[(0, 1)]
+        );
+        assert!(
+            vel[(1, 1)].abs() < 1e-6,
+            "pure x-motion must have zero y-velocity at (1,1), got {}",
+            vel[(1, 1)]
         );
     }
 }

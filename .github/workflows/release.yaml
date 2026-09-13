@@ -6,6 +6,11 @@ on:
   pull_request: {types: [closed], branches: [main]}
   push: {tags: ['v*']}
 
+# least privilege: jobs that need more declare it themselves, and a job-level
+# `permissions:` replaces this one rather than adding to it.
+permissions:
+  contents: read
+
 jobs:
   release:
     # a reusable workflow cannot hold more permission than its caller. this one
@@ -18,7 +23,7 @@ jobs:
     uses: nmichlo/.github/.github/workflows/release-rust.yaml@main
     with:
       package-name: norfair-rs
-    secrets: inherit
+    # no secrets: publishing is OIDC, and release-rust.yaml declares none.
 
   # This job cannot live in the shared reusable workflow. PyPI matches the
   # `job_workflow_ref` OIDC claim, which names the file a job is WRITTEN in:

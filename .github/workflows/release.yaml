@@ -6,11 +6,16 @@ on:
   pull_request: {types: [closed], branches: [main]}
   push: {tags: ['v*']}
 
+# least privilege: jobs that need more declare it themselves, and a job-level
+# `permissions:` replaces this one rather than adding to it.
+permissions:
+  contents: read
+
 jobs:
   release:
     # a reusable workflow cannot hold more permission than its caller. this one
     # commits the Cargo.toml bump, pushes tags and creates releases (`contents`),
-    # and publishes to PyPI and crates.io over OIDC (`id-token`). omitting either
+    # and publishes to crates.io over OIDC (`id-token`). omitting either
     # fails the whole run at startup.
     permissions:
       contents: write
@@ -18,4 +23,38 @@ jobs:
     uses: nmichlo/.github/.github/workflows/release-rust.yaml@main
     with:
       package-name: norfair-rs
-    secrets: inherit
+    # no secrets: publishing is OIDC, and release-rust.yaml declares none.
+
+  # This job cannot live in the shared reusable workflow. PyPI matches the
+  # `job_workflow_ref` OIDC claim, which names the file a job is WRITTEN in:
+  #
+  #   workflow_ref      nmichlo/norfair-rs/.github/workflows/release.yaml
+  #                     ^ the caller. crates.io checks this one, so it is fine.
+  #   job_workflow_ref  nmichlo/.github/.github/workflows/release-rust.yaml
+  #                     ^ what PyPI checks, and it can never name this repo.
+  #
+  # PyPI also builds the expected job_workflow_ref out of the publisher's own
+  # repository, so no configuration satisfies both claims at once. Reusable
+  # workflows are unsupported there: pypa/gh-action-pypi-publish#166. Owning the
+  # job here is upstream's recommended workaround -- it downloads the `wheels-*`
+  # artifacts the reusable workflow uploaded.
+  #
+  # The filename is part of the claim, so the trusted publisher on PyPI (and on
+  # crates.io, which checks `workflow_ref`) must name this file exactly.
+  python-publish:
+    name: Publish to PyPI
+    needs: [release]
+    if: always() && needs.release.result == 'success'
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/norfair-rs
+    permissions:
+      id-token: write  # for trusted publishing
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          merge-multiple: true
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1

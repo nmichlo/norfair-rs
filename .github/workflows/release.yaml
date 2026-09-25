@@ -1,10 +1,11 @@
 name: release
 
 # both triggers are required: a tag pushed with GITHUB_TOKEN does not start
-# another workflow, so the bump and the release have to live in one run.
+# another workflow, so the bump and the release have to live in one run. it is
+# `push` to main rather than a closed pull request because a PR from a fork gets
+# a read-only token, so its merge could never push the tag.
 on:
-  pull_request: {types: [closed], branches: [main]}
-  push: {tags: ['v*']}
+  push: {branches: [main], tags: ['v*']}
 
 # least privilege: jobs that need more declare it themselves, and a job-level
 # `permissions:` replaces this one rather than adding to it.
@@ -14,9 +15,9 @@ permissions:
 jobs:
   release:
     # a reusable workflow cannot hold more permission than its caller. this one
-    # commits the Cargo.toml bump, pushes tags and creates releases (`contents`),
-    # and publishes to crates.io over OIDC (`id-token`). omitting either
-    # fails the whole run at startup.
+    # pushes tags and creates releases (`contents`), and publishes to crates.io
+    # over OIDC (`id-token`). omitting either fails the whole run at startup.
+    # the version comes from the tag: Cargo.toml's 0.0.0 is stamped at build time.
     permissions:
       contents: write
       id-token: write
@@ -44,7 +45,8 @@ jobs:
   python-publish:
     name: Publish to PyPI
     needs: [release]
-    if: always() && needs.release.result == 'success'
+    # empty on #none, when nothing was built
+    if: needs.release.outputs.version != ''
     runs-on: ubuntu-latest
     environment:
       name: pypi

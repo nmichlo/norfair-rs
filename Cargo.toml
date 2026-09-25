@@ -1,6 +1,6 @@
 [package]
 name = "norfair-rs"
-version = "0.5.1"
+version = "0.0.0"  # placeholder: the git tag is the version, stamped at release
 edition = "2021"
 rust-version = "1.70"
 description = "Object tracking library - Rust port of Python norfair"

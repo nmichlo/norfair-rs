@@ -342,7 +342,7 @@ See [PLAN_TESTS.md](./PLAN_TESTS.md) for complete test porting checklist.
 | Internal (filterpy, scipy, numpy, motmetrics) | 98 |
 | Integration | 6 |
 | Fixture (E2E) | 6 |
-| **Total** | **289** |
+| **Total** | **282** |
 
 ---
 
